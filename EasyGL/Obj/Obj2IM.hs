@@ -9,9 +9,13 @@ import qualified EasyGL.IndexedModel as IM
 import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as Map
 import Data.Foldable (toList)
+import qualified Data.Vector.Storable as VS
+
+toVector :: (VS.Storable a) => [a] -> VS.Vector a
+toVector = VS.concat . map VS.singleton
 
 toIndexedModel :: Group -> IM.IndexedModel
-toIndexedModel g = IM.IndexedModel vert2 norm2 (map invertY tex1) index2
+toIndexedModel g = IM.IndexedModel (toVector vert2) (toVector norm2) (toVector $ map invertY tex1) (toVector index2)
   where
     vert0 = vertices g
     norm0 = normals g

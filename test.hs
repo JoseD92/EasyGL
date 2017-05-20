@@ -54,7 +54,7 @@ main = do
     Right mat -> do
       putStrLn "Loading"
       obj <- readObj <$> readFile "./testAssets/sphere.obj"--"./Young Link/YoungLink.obj"
-      let im = IM.generateNormalsSoft $ toIndexedModel $ head $ O.groups obj --IM.generateNormalsSoft
+      let im = IM.generateNormalsHard $ toIndexedModel $ head $ O.groups obj --IM.generateNormalsSoft
       ent <- indexedModel2Ent [im]
       putStrLn "Loaded"
 

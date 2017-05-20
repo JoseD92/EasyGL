@@ -7,22 +7,29 @@ module EasyGL.IndexedModel (
 )
 where
 
-import Graphics.Rendering.OpenGL
-import Data.Array
+import Graphics.Rendering.OpenGL hiding (get)
 import EasyGL.Util
 import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as Map
 import Data.Foldable (toList)
+import Data.Vector.Storable ((!))
+import qualified Data.Vector as V
+import qualified Data.Vector.Mutable as VM
+import qualified Data.Vector.Storable as VS
+import qualified Data.Vector.Storable.Mutable as VSM
+import Control.Monad.ST
+import Control.Monad.State.Lazy
+import Control.Monad.Reader
 
 data IndexedModel = IndexedModel {
-  vertices :: ![Vertex3 GLfloat],
-  normals :: ![Vector3 GLfloat],
-  textureCoord :: ![Vector2 GLfloat],
-  indexes :: ![GLuint]
+  vertices :: !(VS.Vector (Vertex3 GLfloat)),
+  normals :: !(VS.Vector (Vector3 GLfloat)),
+  textureCoord :: !(VS.Vector (Vector2 GLfloat)),
+  indexes :: !(VS.Vector GLuint)
 } deriving (Show)
 
 emptyIndexedModel :: IndexedModel
-emptyIndexedModel = IndexedModel [] [] [] []
+emptyIndexedModel = IndexedModel VS.empty VS.empty VS.empty VS.empty
 
 toVector :: (Num a) => Vertex3 a -> Vertex3 a -> Vector3 a
 toVector (Vertex3 x1 y1 z1)  (Vertex3 x2 y2 z2) = Vector3 (x1-x2) (y1-y2) (z1-z2)
@@ -30,119 +37,210 @@ toVector (Vertex3 x1 y1 z1)  (Vertex3 x2 y2 z2) = Vector3 (x1-x2) (y1-y2) (z1-z2
 toVertex :: (Num a) => Vertex3 a -> Vector3 a -> Vertex3 a
 toVertex (Vertex3 x1 y1 z1)  (Vector3 x2 y2 z2) = Vertex3 (x1+x2) (y1+y2) (z1+z2)
 
-renderLine :: (Vertex3 GLfloat,Vertex3 GLfloat) -> IO ()
-renderLine (a,b) = do
+renderLine :: Vertex3 GLfloat -> Vertex3 GLfloat -> IO ()
+renderLine a b = do
   vertex a
   vertex b
 
 renderNormals :: IndexedModel -> IO ()
-renderNormals g = renderPrimitive Lines $ mapM_ renderLine $ zip verts newVerts
+renderNormals g = renderPrimitive Lines $ VS.zipWithM_ renderLine verts newVerts
   where
     verts = vertices g
-    newVerts = zipWith toVertex verts (normals g)
+    newVerts = VS.zipWith toVertex verts (normals g)
 
 
 --Normals generation
 generateNormalsSoft :: IndexedModel -> IndexedModel
-generateNormalsSoft g = g{normals=newNormals}
+generateNormalsSoft g = g{normals=runST $ do
+    acc <- VM.replicate len Nothing
+    runReaderT (evalStateT (generateNormalsSoftAux g) 0) acc
+    fmap (VS.concat . map (VS.singleton . maybeNormalize) . toList) $ V.freeze acc
+  }
   where
-    len = fromIntegral $ length verts
-    verts = vertices g
-    index = indexes g
-    newNormals = generateNormalsSoftAux index (listArray (0,len-1) verts) (listArray (0,len-1) (repeat Nothing))
-
-(<+>) :: (Num a) => Maybe a -> a -> a
-Nothing <+> e = 0 + e
-(Just a) <+> e = a+e
-
---some vertex may not be use be the index array, so it is important not to normalize a vector 0 0 0, that is a nan error
---that is the reason for normalsAcc to be a Array GLuint (Maybe (Vector3 GLfloat)) and not a Array GLuint (Vector3 GLfloat)
---in the second case the array would have need to be initialize as (listArray (0,len-1) (repeat Vector3 0 0 0)), leading to nan
-generateNormalsSoftAux :: [GLuint] -> Array GLuint (Vertex3 GLfloat) -> Array GLuint (Maybe (Vector3 GLfloat)) -> [Vector3 GLfloat]
-generateNormalsSoftAux [] _ n = map maybeNormalize $ elems n
-  where
+    len = VS.length . vertices $ g
     maybeNormalize Nothing = Vector3 0 0 0
     maybeNormalize (Just v) = normalizeVec3 v
-generateNormalsSoftAux (x:y:z:xs) verts normalsAcc = generateNormalsSoftAux xs verts updatedNormals
+
+(<+>) :: (Num a) => a -> Maybe a -> Maybe a
+e <+> Nothing = Just e
+e <+> (Just a) = Just $ a+e
+
+generateNormalsSoftAux :: IndexedModel -> StateT Int (ReaderT (VM.MVector s (Maybe (Vector3 GLfloat))) (ST s)) ()
+generateNormalsSoftAux g = do
+  acc <- ask
+  current <- get
+  unless (current == len) $ do
+    let x = fromIntegral $ index ! current
+        y = fromIntegral $ index ! (current+1)
+        z = fromIntegral $ index ! (current+2)
+        v1 = toVector (verts ! y) (verts ! x)
+        v2 = toVector (verts ! z) (verts ! x)
+        normal = normalizeVec3 $ crossVec3 v1 v2
+    VM.modify acc (normal <+>) x
+    VM.modify acc (normal <+>) y
+    VM.modify acc (normal <+>) z
+    put $ current+3
+    generateNormalsSoftAux g
   where
-    v1 = toVector (verts ! y) (verts ! x)
-    v2 = toVector (verts ! z) (verts ! x)
-    normal = normalizeVec3 $ crossVec3 v1 v2
-    updatedNormals = normalsAcc // [(x,Just ((normalsAcc ! x)<+>normal)),(y,Just ((normalsAcc ! y)<+>normal)),(z,Just ((normalsAcc ! z)<+>normal))]
-generateNormalsSoftAux _ _ _ = []
-
-type EVert = Either (Vertex3 GLfloat) (Vertex3 GLfloat,Vector2 GLfloat)
-
-mylefts :: [EVert] -> [Vertex3 GLfloat]
-mylefts [] = []
-mylefts (Left x:xs) = x:mylefts xs
-mylefts (_:xs) = mylefts xs
-
-myrights :: [EVert] -> [(Vertex3 GLfloat,Vector2 GLfloat)]
-myrights [] = []
-myrights (Right x:xs) = x:myrights xs
-myrights (_:xs) = myrights xs
+    len = VS.length . indexes $ g
+    verts = vertices g
+    index = indexes g
 
 generateNormalsHard :: IndexedModel -> IndexedModel
-generateNormalsHard g = IndexedModel nv nn nt ni
-  where
-    len = fromIntegral $ length verts
-    len2 = fromIntegral $ (length $ indexes g)
-    verts = vertices g
-    index = listArray (0,len2-1) $ indexes g
-    mydata = if null (textureCoord g) then listArray (0,len-1) (map Left verts) else listArray (0,len-1) $ map Right $ zip verts (textureCoord g)
-    (edata,nn,ni) = generateNormalsHardAux 0 len2 len index mydata (listArray (0,len-1) (repeat Nothing)) Seq.empty Seq.empty Map.empty
-    (nv,nt) = if null (textureCoord g) then (mylefts edata,[]) else unzip $ myrights edata
-
-norm :: Vertex3 GLfloat -> Vertex3 GLfloat -> Vertex3 GLfloat -> Vector3 GLfloat
-norm x y z = normalizeVec3 $ crossVec3 v1 v2
-  where
-    v1 = toVector y x
-    v2 = toVector z x
-
-enorm :: EVert -> EVert -> EVert -> Vector3 GLfloat
-enorm (Left x) (Left y) (Left z) = norm x y z
-enorm (Right (x,_)) (Right (y,_)) (Right (z,_)) = norm x y z
-enorm _ _ _ = Vector3 0 0 0
-
-generateNormalsHardAux :: GLuint -> GLuint -> GLuint -> Array GLuint GLuint -> Array GLuint EVert -> Array GLuint (Maybe (Vector3 GLfloat)) -> Seq.Seq EVert -> Seq.Seq (Vector3 GLfloat) -> Map.Map (EVert,Vector3 GLfloat) GLuint -> ([EVert],[Vector3 GLfloat],[GLuint])
-generateNormalsHardAux current limit next index edata mnorm extraA extraB extraMap
-  | current == limit = (elems edata ++ toList extraA,map toVer (elems mnorm) ++ toList extraB,elems index)
-  | otherwise = generateNormalsHardAux (current+3) limit new_next new_index edata new_mnorm new_extraA new_extraB new_extraMap
+generateNormalsHard g = runST $ do
+  inde <- VS.thaw $ indexes g
+  acc <- VM.replicate len Nothing
+  if VS.null texts then do
+    (extraVerts,extraNorms) <- runReaderT (evalStateT generateNormalsHardAux1 (Hard1 0 len Map.empty Seq.empty Seq.empty)) (verts,inde,acc)
+    let newVerts = verts VS.++ (VS.concat . map VS.singleton . toList $ extraVerts)
+    newInde <- VS.freeze inde
+    newNorms0 <- fmap (VS.concat . map (VS.singleton . toVer) . toList) $ V.freeze acc
+    let newNorms = newNorms0 VS.++ (VS.concat . map VS.singleton . toList $ extraNorms)
+    return $ IndexedModel newVerts newNorms VS.empty newInde
+  else do
+    (extraVerts,extraNorms,extraText) <- runReaderT (evalStateT generateNormalsHardAux2 (Hard2 0 len Map.empty Seq.empty Seq.empty Seq.empty)) (verts,texts,inde,acc)
+    let newVerts = verts VS.++ (VS.concat . map VS.singleton . toList $ extraVerts)
+    newInde <- VS.freeze inde
+    let newText = texts VS.++ (VS.concat . map VS.singleton . toList $ extraText)
+    newNorms0 <- fmap (VS.concat . map (VS.singleton . toVer) . toList) $ V.freeze acc
+    let newNorms = newNorms0 VS.++ (VS.concat . map VS.singleton . toList $ extraNorms)
+    return $ IndexedModel newVerts newNorms newText newInde
   where
     toVer Nothing = Vector3 0 0 0
-    toVer (Just x) = x
-    currentData1 = edata ! (index ! current)
-    currentData2 = edata ! (index ! (current+1))
-    currentData3 = edata ! (index ! (current+2))
-    currentNorm1 = mnorm ! (index ! current)
-    currentNorm2 = mnorm ! (index ! (current+1))
-    currentNorm3 = mnorm ! (index ! (current+2))
-    norm = enorm currentData1 currentData2 currentData3
-    mextra1 = Map.lookup (currentData1,norm) extraMap
-    mextra2 = Map.lookup (currentData2,norm) extraMap
-    mextra3 = Map.lookup (currentData3,norm) extraMap
-    (next1,index1,norm1,extraA1,extraB1,extraMap1) = maybe
-      (next,index,mnorm//[(index ! current,Just norm)],extraA,extraB,extraMap)
-      (const $ maybe
-        (next+1,index//[(current,next)],mnorm,extraA Seq.|> currentData1,extraB Seq.|> norm,Map.insert (currentData1,norm) next extraMap)
-        (\i->(next,index//[(current,i)],mnorm,extraA,extraB,extraMap))
-        mextra1
+    toVer (Just v) = v
+    verts = vertices g
+    texts = textureCoord g
+    len = VS.length verts
+
+data Hard1 = Hard1 {
+    current1 :: Int,
+    next1 :: Int,
+    extraMap1 :: Map.Map (Vertex3 GLfloat,Vector3 GLfloat) GLuint,
+    extraVert1 :: Seq.Seq (Vertex3 GLfloat),
+    extraNorm1 :: Seq.Seq (Vector3 GLfloat)
+  }
+
+generateNormalsHardAux1 :: StateT Hard1 (ReaderT (VS.Vector (Vertex3 GLfloat),VSM.MVector s GLuint,VM.MVector s (Maybe (Vector3 GLfloat))) (ST s)) (Seq.Seq (Vertex3 GLfloat),Seq.Seq (Vector3 GLfloat))
+generateNormalsHardAux1 = do
+  (verts,index,normacc) <- ask
+  data1 <- get
+  let current = current1 data1
+      emap = extraMap1 data1
+  if current == VSM.length index then return (extraVert1 data1,extraNorm1 data1)
+  else do
+    x <- fmap fromIntegral $ VSM.read index current
+    y <- fmap fromIntegral $ VSM.read index (current+1)
+    z <- fmap fromIntegral $ VSM.read index (current+2)
+    currentNorm1 <- VM.read normacc x
+    currentNorm2 <- VM.read normacc y
+    currentNorm3 <- VM.read normacc z
+    let vert1 = verts ! x
+        vert2 = verts ! y
+        vert3 = verts ! z
+        v1 = toVector vert2 vert1
+        v2 = toVector vert3 vert1
+        normal = normalizeVec3 $ crossVec3 v1 v2
+        mextra1 = Map.lookup (vert1,normal) emap
+        mextra2 = Map.lookup (vert2,normal) emap
+        mextra3 = Map.lookup (vert3,normal) emap
+    decider1 0 x normal currentNorm1 mextra1
+    decider1 1 y normal currentNorm2 mextra2
+    decider1 2 z normal currentNorm3 mextra3
+    modify $ \data2 -> data2{current1=current+3}
+    generateNormalsHardAux1
+
+decider1 :: Int -> Int -> Vector3 GLfloat -> Maybe (Vector3 GLfloat) -> Maybe GLuint -> StateT Hard1 (ReaderT (VS.Vector (Vertex3 GLfloat),VSM.MVector s GLuint,VM.MVector s (Maybe (Vector3 GLfloat))) (ST s)) ()
+decider1 offset pos norm currentNorm mextra = do
+  (verts,index,normacc) <- ask
+  data1 <- get
+  let current = current1 data1
+      next = next1 data1
+      emap = extraMap1 data1
+      extraV = extraVert1 data1
+      extraN = extraNorm1 data1
+      vert = verts ! pos
+  maybe (do
+        VM.write normacc pos (Just norm)
+        modify $ \data2 -> data2{extraMap1=Map.insert (vert,norm) (fromIntegral pos) emap}
+    )
+    (const $ maybe (do
+        VSM.write index (current+offset) (fromIntegral next)
+        modify $ \data2 -> data2{next1=next + 1,
+          extraVert1=extraV Seq.|> vert,
+          extraNorm1=extraN Seq.|> norm,
+          extraMap1=Map.insert (vert,norm) (fromIntegral next) emap}
       )
-      currentNorm1
-    (next2,index2,norm2,extraA2,extraB2,extraMap2) = maybe
-      (next1,index1,norm1//[(index ! (current+1),Just norm)],extraA1,extraB1,extraMap1)
-      (const $ maybe
-        (next1+1,index1//[(current+1,next1)],norm1,extraA1 Seq.|> currentData2,extraB1 Seq.|> norm,Map.insert (currentData2,norm) next1 extraMap1)
-        (\i->(next1,index1//[(current+1,i)],norm1,extraA1,extraB1,extraMap1))
-        mextra2
+      (\i->VSM.write index (current+offset) (fromIntegral i))
+      mextra
+    )
+    currentNorm
+
+data Hard2 = Hard2 {
+    current2 :: Int,
+    next2 :: Int,
+    extraMap2 :: Map.Map (Vertex3 GLfloat,Vector2 GLfloat,Vector3 GLfloat) GLuint,
+    extraVert2 :: Seq.Seq (Vertex3 GLfloat),
+    extraNorm2 :: Seq.Seq (Vector3 GLfloat),
+    extraText2 :: Seq.Seq (Vector2 GLfloat)
+  }
+
+generateNormalsHardAux2 :: StateT Hard2 (ReaderT (VS.Vector (Vertex3 GLfloat),VS.Vector (Vector2 GLfloat),VSM.MVector s GLuint,VM.MVector s (Maybe (Vector3 GLfloat))) (ST s)) (Seq.Seq (Vertex3 GLfloat),Seq.Seq (Vector3 GLfloat),Seq.Seq (Vector2 GLfloat))
+generateNormalsHardAux2 = do
+  (verts,texts,index,normacc) <- ask
+  data1 <- get
+  let current = current2 data1
+      emap = extraMap2 data1
+  if (current == VSM.length index) then return (extraVert2 data1,extraNorm2 data1,extraText2 data1)
+  else do
+    x <- fmap fromIntegral $ VSM.read index current
+    y <- fmap fromIntegral $ VSM.read index (current+1)
+    z <- fmap fromIntegral $ VSM.read index (current+2)
+    currentNorm1 <- VM.read normacc x
+    currentNorm2 <- VM.read normacc y
+    currentNorm3 <- VM.read normacc z
+    let vert1 = verts ! x
+        vert2 = verts ! y
+        vert3 = verts ! z
+        text1 = texts ! x
+        text2 = texts ! y
+        text3 = texts ! z
+        v1 = toVector vert2 vert1
+        v2 = toVector vert3 vert1
+        normal = normalizeVec3 $ crossVec3 v1 v2
+        mextra1 = Map.lookup (vert1,text1,normal) emap
+        mextra2 = Map.lookup (vert2,text2,normal) emap
+        mextra3 = Map.lookup (vert3,text3,normal) emap
+    decider2 0 x normal currentNorm1 mextra1
+    decider2 1 y normal currentNorm2 mextra2
+    decider2 2 z normal currentNorm3 mextra3
+    modify $ \data2 -> data2{current2=current+3}
+    generateNormalsHardAux2
+
+decider2 :: Int -> Int -> Vector3 GLfloat -> Maybe (Vector3 GLfloat) -> Maybe GLuint -> StateT Hard2 (ReaderT (VS.Vector (Vertex3 GLfloat),VS.Vector (Vector2 GLfloat),VSM.MVector s GLuint,VM.MVector s (Maybe (Vector3 GLfloat))) (ST s)) ()
+decider2 offset pos norm currentNorm mextra = do
+  (verts,texts,index,normacc) <- ask
+  data1 <- get
+  let current = current2 data1
+      next = next2 data1
+      emap = extraMap2 data1
+      extraV = extraVert2 data1
+      extraN = extraNorm2 data1
+      extraT = extraText2 data1
+      vert = verts ! pos
+      text = texts ! pos
+  maybe (do
+        VM.write normacc pos (Just norm)
+        modify $ \data2 -> data2{extraMap2=Map.insert (vert,text,norm) (fromIntegral pos) emap}
+    )
+    (const $ maybe (do
+        VSM.write index (current+offset) (fromIntegral next)
+        modify $ \data2 -> data2{next2=next + 1,
+          extraVert2=extraV Seq.|> vert,
+          extraNorm2=extraN Seq.|> norm,
+          extraText2=extraT Seq.|> text,
+          extraMap2=Map.insert (vert,text,norm) (fromIntegral next) emap}
       )
-      currentNorm2
-    (new_next,new_index,new_mnorm,new_extraA,new_extraB,new_extraMap) = maybe
-      (next2,index2,norm2//[(index ! (current+2),Just norm)],extraA2,extraB2,extraMap2)
-      (const $ maybe
-        (next2+1,index2//[(current+2,next2)],norm2,extraA2 Seq.|> currentData3,extraB2 Seq.|> norm,Map.insert (currentData3,norm) next2 extraMap2)
-        (\i->(next2,index2//[(current+2,i)],norm2,extraA2,extraB2,extraMap2))
-        mextra3
-      )
-      currentNorm3
+      (\i->VSM.write index (current+offset) (fromIntegral i))
+      mextra
+    )
+    currentNorm

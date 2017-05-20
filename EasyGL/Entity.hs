@@ -7,6 +7,7 @@ import qualified EasyGL.IndexedModel as IM
 import Foreign.Marshal.Array
 import Foreign.Ptr
 import Foreign.Storable
+import qualified Data.Vector.Storable as VS
 
 import Graphics.Rendering.OpenGL
 import System.IO
@@ -24,14 +25,14 @@ setVertexAttribPointer (location,numComponents) = do
 cleanVertexAttribPointer :: (GLuint,NumComponents) -> IO ()
 cleanVertexAttribPointer (location,_) = vertexAttribArray (AttribLocation location) $= Disabled
 
-makeBufferObject :: (Storable a) => BufferTarget -> [a] -> BufferUsage -> Maybe (GLuint,NumComponents) -> IO BufferObject
+makeBufferObject :: (Storable a) => BufferTarget -> VS.Vector a -> BufferUsage -> Maybe (GLuint,NumComponents) -> IO BufferObject
 makeBufferObject target elems usage m = do
   --creating buffer
   buffer <- genObjectName
   bindBuffer target $= Just buffer
   --filling buffer
-  withArray elems $ \ptr -> do
-    let size = fromIntegral (length elems * sizeOf (head elems))
+  VS.unsafeWith elems $ \ptr -> do
+    let size = fromIntegral (VS.length elems * sizeOf (VS.head elems))
     bufferData target $= (size, ptr, usage)
   --seting vertex attrib pointer to make aware of propiety
   maybe (return ()) setVertexAttribPointer m
@@ -61,13 +62,13 @@ fromIM :: IM.IndexedModel -> IO SubEntity
 fromIM g = do
   mesh <- makeArrayBufferObject
   vertexBuffer <- makeBufferObject ArrayBuffer (IM.vertices g) StaticDraw $ Just (0,3)
-  textureCoord <- if null (IM.textureCoord g) then return Nothing else
+  textureCoord <- if VS.null (IM.textureCoord g) then return Nothing else
     fmap Just $ makeBufferObject ArrayBuffer (IM.textureCoord g) StaticDraw $ Just (1,2)
-  normalBuffer <- if null (IM.normals g) then return Nothing else
+  normalBuffer <- if VS.null (IM.normals g) then return Nothing else
     fmap Just $ makeBufferObject ArrayBuffer (IM.normals g) StaticDraw $ Just (2,3)
   indexBuffer <- makeBufferObject ElementArrayBuffer (IM.indexes g) StaticDraw Nothing
   bindVertexArrayObject $= Nothing
-  return (SubEntity mesh vertexBuffer Nothing normalBuffer indexBuffer (length (IM.vertices g)) (length (IM.indexes g)))
+  return (SubEntity mesh vertexBuffer Nothing normalBuffer indexBuffer (VS.length (IM.vertices g)) (VS.length (IM.indexes g)))
 
 readObj2Ent :: String -> IO Entity
 readObj2Ent s = (Obj.readObj <$> readFile s) >>= indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
