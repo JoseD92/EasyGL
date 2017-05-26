@@ -9,6 +9,7 @@ module EasyGL.Shader (
   Shader,
   loadShadersFromFile,
   loadShadersFromBS,
+  deleteShader,
   withShader,
   putActiveUniforms,
   setVar,
@@ -16,6 +17,7 @@ module EasyGL.Shader (
 where
 
 import           Control.Monad
+import           Control.Monad.IO.Class (MonadIO)
 import qualified Data.ByteString           as BS
 import           Data.StateVar             (get, ($=!))
 import           Foreign.Marshal.Array     (withArray)
@@ -83,8 +85,16 @@ linkShaders mhandle shaders = do
   bindEasyGLShaderAttrib (program active)
   GL.linkProgram (program active)
   mapM_ (mensajes mhandle . GL.shaderInfoLog) shaders
+  mapM_ GL.deleteObjectName shaders -- flags shaders for deletion
   mensajes mhandle $ GL.programInfoLog (program active)
   return active
+
+{-|
+  Frees the memory and invalidates the name associated with the shader
+-}
+deleteShader :: MonadIO m => Shader -> m ()
+deleteShader = GL.deleteObjectName . program
+-- GL.Shader objects where mark for deletion on linkShaders, no other action is required.
 
 {-|
   Specifies an action to be made using a given shader.
