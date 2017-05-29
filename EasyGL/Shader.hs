@@ -17,7 +17,7 @@ module EasyGL.Shader (
 where
 
 import           Control.Monad
-import           Control.Monad.IO.Class (MonadIO)
+import           Control.Monad.IO.Class (MonadIO,liftIO)
 import qualified Data.ByteString           as BS
 import           Data.StateVar             (get, ($=!))
 import           Foreign.Marshal.Array     (withArray)
@@ -31,8 +31,8 @@ import           System.IO                 (Handle, hPutStr)
 newtype Shader = Shader {
   program :: GL.Program}
 
-empty :: IO Shader
-empty = fmap Shader GL.createProgram
+empty :: MonadIO m => m Shader
+empty = liftIO $ fmap Shader GL.createProgram
 
 mensajes :: Maybe Handle -> GL.GettableStateVar String -> IO ()
 mensajes mhandle var =
@@ -60,17 +60,17 @@ loadShaderFromBS bs shadertype = do
 {-|
   Creates a simple shader from files.
 -}
-loadShadersFromFile :: [String]  -- ^ FilePaths to each shader to load.
+loadShadersFromFile :: MonadIO m => [String]  -- ^ FilePaths to each shader to load.
   -> [GL.ShaderType]   -- ^ Shader type to each shader to load. See http://hackage.haskell.org/package/OpenGL-3.0.1.0/docs/Graphics-Rendering-OpenGL-GL-Shaders-ShaderObjects.html#t:ShaderType
   -> Maybe Handle   -- ^ If given a file handle, will print all compile errors to given handle
-  -> IO Shader
-loadShadersFromFile s st mhandle = zipWithM loadShaderFromFile s st >>= linkShaders mhandle
+  -> m Shader
+loadShadersFromFile s st mhandle = liftIO $ zipWithM loadShaderFromFile s st >>= linkShaders mhandle
 
 {-|
   Creates a simple shader from byte strings.
 -}
-loadShadersFromBS :: [BS.ByteString] -> [GL.ShaderType] -> Maybe Handle -> IO Shader
-loadShadersFromBS s st mhandle = zipWithM loadShaderFromBS s st >>= linkShaders mhandle
+loadShadersFromBS :: MonadIO m => [BS.ByteString] -> [GL.ShaderType] -> Maybe Handle -> m Shader
+loadShadersFromBS s st mhandle = liftIO $ zipWithM loadShaderFromBS s st >>= linkShaders mhandle
 
 bindEasyGLShaderAttrib :: GL.Program -> IO ()
 bindEasyGLShaderAttrib shaderProgram = do
@@ -99,19 +99,19 @@ deleteShader = GL.deleteObjectName . program
 {-|
   Specifies an action to be made using a given shader.
 -}
-withShader :: Shader -> IO a -> IO a
+withShader :: MonadIO m => Shader -> m a -> m a
 withShader s action = do
-  pastProgram <- GL.get GL.currentProgram
-  GL.currentProgram $=! Just (program s)
+  pastProgram <- liftIO $ GL.get GL.currentProgram
+  liftIO $ GL.currentProgram $=! Just (program s)
   ret <- action
-  GL.currentProgram $=! pastProgram
+  liftIO $ GL.currentProgram $=! pastProgram
   return ret
 
 {-|
   Prints to stdout all active uniforms variables of currently selected shader.
 -}
-putActiveUniforms :: IO ()
-putActiveUniforms = do
+putActiveUniforms :: MonadIO m => m ()
+putActiveUniforms = liftIO $ do
   pro <- get GL.currentProgram
   maybe (return ())
         (GL.activeUniforms >=> print)
@@ -121,8 +121,8 @@ putActiveUniforms = do
   Sets an uniform variable of currently selected shader to a given value.
   Warning: does not checks types of provide value against variable.
 -}
-setVar :: GL.Uniform a => a -> String -> IO ()
-setVar val str = do
+setVar :: (MonadIO m,GL.Uniform a) => a -> String -> m ()
+setVar val str = liftIO $ do
   pro <- get GL.currentProgram
   maybe (return ())
         (\x->do
@@ -135,8 +135,8 @@ setVar val str = do
 Sets an uniform variable of currently selected shader to a given array of values.
 Warning: does not checks types of provide value against variable.
 -}
-setArr :: (Storable  a, GL.Uniform a, Integral b) => [a] -> b -> String -> IO ()
-setArr vals tam str = do
+setArr :: (MonadIO m,Storable  a, GL.Uniform a, Integral b) => [a] -> b -> String -> m ()
+setArr vals tam str = liftIO $ do
   pro <- get GL.currentProgram
   maybe (return ())
         (\x->do
