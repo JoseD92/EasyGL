@@ -18,7 +18,8 @@ module EasyGL.Init (MouseDelta,
   maybeUp,
   maybeReleased,
   initOpenGLEnvironment,
-  initGL)
+  initGL,
+  currentAspect)
 where
 
 import qualified Graphics.UI.GLUT  as GLUT
@@ -32,6 +33,7 @@ import qualified Graphics.Rendering.OpenGL as GL
 import           System.IO                 (Handle, hPutStr)
 import Data.Map.Strict
 import qualified Data.Map.Strict as Map
+import           Control.Monad.IO.Class (MonadIO,liftIO)
 
 type MouseDelta = (GL.GLint,GL.GLint)
 type MouseKey = (Map GLUT.Key KeyState,MouseDelta)
@@ -72,6 +74,12 @@ maybeUp :: t -> t -> Maybe KeyState -> t
 maybeUp x y = maybe x (filterUp y x)
 maybeReleased :: t -> t -> Maybe KeyState -> t
 maybeReleased x y = maybe x (filterReleased y x)
+
+-- | Returns current aspect ratio of active opengl windows.
+currentAspect :: MonadIO m => m GL.GLdouble
+currentAspect = do
+  (GLUT.Size w h) <- GLUT.get GLUT.windowSize
+  return (fromIntegral w / fromIntegral h)
 
 instance Show IOLoop where
   show (IOLoop _) = "IOLoop"

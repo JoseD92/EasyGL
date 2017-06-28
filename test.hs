@@ -8,6 +8,7 @@ import           Data.StateVar             (get, ($=!), ($=), ($~!))
 import Data.IORef (IORef, newIORef)
 import System.IO (stderr)
 import EasyGL.Entity
+import EasyGL.Camera
 import EasyGL.Material
 import EasyGL.Shader (setVar)
 import EasyGL.Obj.Obj (readObj,toIndexedModel,toIndexedModel)
@@ -36,15 +37,20 @@ cambio angulo movimiento max sensibilidad
     d = angulo + fromIntegral movimiento/sensibilidad
 
 data MyData = MyData {
-  angulo :: (GLdouble,GLdouble),
+  camera :: Camera3D,
   vistaEneabled :: Bool,
-  place :: Vertex3 GLdouble,
-  shaderUse :: GLint
+  shaderUse :: GLint,
+  yaw :: GLdouble,
+  picth :: GLdouble,
+  roll :: GLdouble
 }
+
+updateRot m = m{camera=setYawPitchRoll (yaw m) (picth m) (roll m) $ camera m}
 
 main = do
   initOpenGLEnvironment 800 600 "test"
-  mydata <- newIORef $ MyData (270,90) False (Vertex3 0.0 0.0 10.0) 0
+  let (Right c) = createCamera3D 0.0 0.0 10.0 0 0 0 30 (800/600) 0.3 200
+  mydata <- newIORef $ MyData c False 0 0 0 0
   myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
   --a <- makeMaterial "mat1" myShader [("./Young Link/YoungLink_grp1.png","sampler01")]
   a <- makeMaterial "mat1" myShader []
@@ -60,39 +66,58 @@ main = do
 
       initGL $ IOLoop $ myfun (getDelta clock) (mat,ent) mydata
 
+sensitivity = 0.1
+
+sumWithLimits max min a b
+  | a + b > max = max
+  | a + b < min = min
+  | otherwise = a + b
+
+sumCiclic max a b
+  | a + b > max = a + b - max
+  | a + b < 0 = a + b + max
+  | otherwise = a + b
+
 myfun :: IO Double -> (Material,Entity) -> IORef MyData -> MouseKey -> IO [IORet]
 myfun clock (mat,link) mydataref a@(myMap,(deltax,deltay)) = do
   mydata <- get mydataref
 
-  let v1 = place mydata
-  let (a,b) = angulo mydata
-  let v2 = Vertex3 (sin (b*pi/180)*cos (a*pi/180)) (cos (b*pi/180)) (sin (b*pi/180)*sin (a*pi/180))
-  lookAt v1 (vecSum v1 v2) (Vector3 0.0 1.0 0.0)
+  putStrLn $ (show . yaw) mydata ++ " " ++ (show . picth) mydata
+
+  useCamera $ camera mydata
+  maybeDown (return ()) (do
+      lookAt (Vertex3 0.0 0.0 10.0) (Vertex3 (-1.836909530733566e-16) 6.123031769111886e-17 9.0) (Vector3 0.0 1.0 0.0)
+      print "r"
+    ) $ Map.lookup (Char 'r') myMap
 
   color $ Color3 (1::GLfloat) 1 1 -- set outline color to black
   cubeFrame 1 -- draw the outline
 
   preservingMatrix $ do
-    scale 1 1 (1 :: GLfloat)
+    scale 20 20 (20 :: GLfloat)
     --color $ Color3 (0::GLfloat) 1 0
     --normals
     drawWithMat mat link $ do
       --print $ shaderUse mydata
       setVar (shaderUse mydata) "use"
 
+  deltaTime <- fmap (*5) clock
   --controls
-  when (vistaEneabled mydata) $ mydataref $~! \ref ->
-    ref{angulo=(cambio a deltax 360 5,cambio b deltay 180 5)}
+  when (vistaEneabled mydata) $ do
+    mydataref $~! \ref ->
+      ref{yaw= sumWithLimits 90 (-90) (-1 * fromIntegral deltay * sensitivity) (yaw ref),
+          picth= sumCiclic 360 (-1 * fromIntegral deltax * sensitivity) (picth ref),
+          roll=roll ref
+        }
+    mydataref $~! updateRot
 
   case exit of
     Just Down -> exitSuccess
     _ -> return ()
 
-  deltaTime <- fmap (*5) clock
-  mydataref $~! \ref@(MyData _ _ (Vertex3 x y z) _) -> ref{place=Vertex3
-    (x-mvx*deltaTime) (y+mvy*deltaTime) (z+mvz*deltaTime)}
+  mydataref $~! \ref -> ref{camera=translateCamera (mvx*deltaTime) (mvy*deltaTime) (mvz*deltaTime) $ camera ref}
 
-  maybePressed (return ()) (mydataref $~! \ref@(MyData _ _ _ s) -> ref{shaderUse=mod (s+1) 3}) $ Map.lookup (Char 'e') myMap
+  maybePressed (return ()) (mydataref $~! \ref -> ref{shaderUse=mod (shaderUse ref+1) 3}) $ Map.lookup (Char 'e') myMap
   maybePressed (return ()) (polygonMode $=! (Point,Point)) $ Map.lookup (Char 'u') myMap
   maybePressed (return ()) (polygonMode $=! (Line,Line)) $ Map.lookup (Char 'i') myMap
   maybePressed (return ()) (polygonMode $=! (Fill,Fill)) $ Map.lookup (Char 'o') myMap
