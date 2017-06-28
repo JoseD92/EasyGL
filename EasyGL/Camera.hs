@@ -11,7 +11,9 @@ module EasyGL.Camera (
   createCamera3D,
   yawCamera,
   picthCamera,
-  rollCamera
+  rollCamera,
+  setYawPitchRoll,
+  currentAspect
 )
 where
 import           Control.Monad.IO.Class (MonadIO,liftIO)
@@ -20,6 +22,7 @@ import qualified Graphics.GL as GL
 import Graphics.GL (GLdouble)
 import qualified Data.Matrix as Mat
 import Foreign.Marshal.Array
+import qualified Graphics.UI.GLUT as GLUT
 
 {-|
   Stores OpenGL data required to change perspectives.
@@ -71,18 +74,34 @@ createCamera3D x y z picth roll yaw fovy aspect zNear zFar
   where
     rot = yawPicthRollMatrix yaw picth roll
 
+-- | Returns current aspect ratio of active opengl windows.
+currentAspect :: MonadIO m => m GLdouble
+currentAspect = do
+  (GLUT.Size w h) <- GLUT.get GLUT.windowSize
+  return (fromIntegral w / fromIntegral h)
+
+-- | Sets camera yaw picth and roll
+setYawPitchRoll :: GLdouble -> GLdouble -> GLdouble -> Camera -> Camera
+setYawPitchRoll _ _ _ c@Camera2D{} = c
+setYawPitchRoll yaw picth roll (Camera3D _ x y z fovy aspect zNear zFar) = Camera3D newMat x y z fovy aspect zNear zFar
+  where
+    newMat = yawPicthRollMatrix yaw picth roll
+
+-- | Yaws Camera
 yawCamera :: GLdouble -> Camera -> Camera
 yawCamera _ c@Camera2D{} = c
 yawCamera yaw (Camera3D mat x y z fovy aspect zNear zFar) = Camera3D newMat x y z fovy aspect zNear zFar
   where
     newMat = Mat.multStd (yawMatrix yaw) mat
 
+-- | Picthes Camera
 picthCamera :: GLdouble -> Camera -> Camera
 picthCamera _ c@Camera2D{} = c
 picthCamera picth (Camera3D mat x y z fovy aspect zNear zFar) = Camera3D newMat x y z fovy aspect zNear zFar
   where
     newMat = Mat.multStd (picthMatrix picth) mat
 
+-- | Rolls Camera
 rollCamera :: GLdouble -> Camera -> Camera
 rollCamera _ c@Camera2D{} = c
 rollCamera roll (Camera3D mat x y z fovy aspect zNear zFar) = Camera3D newMat x y z fovy aspect zNear zFar
