@@ -105,10 +105,11 @@ myfun clock (mat,link) mydataref a@(myMap,(deltax,deltay)) = do
   --controls
   when (vistaEneabled mydata) $ do
     mydataref $~! \ref ->
-      ref{yaw= sumWithLimits 90 (-90) (-1 * fromIntegral deltay * sensitivity) (yaw ref),
-          picth= sumCiclic 360 (-1 * fromIntegral deltax * sensitivity) (picth ref),
-          roll=roll ref
+      ref{picth= sumWithLimits 90 (-90) (-1 * fromIntegral deltay * sensitivity) (picth ref),
+          yaw= sumCiclic 360 (-1 * fromIntegral deltax * sensitivity) (yaw ref)
         }
+    maybeDown (return ()) (mydataref $~! \ref -> ref{roll=roll ref + 10 * deltaTime}) $ Map.lookup (Char 'g') myMap
+    maybeDown (return ()) (mydataref $~! \ref -> ref{roll=roll ref - 10 * deltaTime}) $ Map.lookup (Char 'f') myMap
     mydataref $~! updateRot
 
   case exit of

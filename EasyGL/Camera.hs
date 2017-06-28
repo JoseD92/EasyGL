@@ -126,6 +126,7 @@ sina = sin . toAngle
 cosa :: Floating a => a -> a
 cosa = cos . toAngle
 
+{-
 yawMatrix :: Floating a => a -> Mat.Matrix a
 yawMatrix yaw = Mat.fromList 4 4 [
     1, 0, 0, 0,
@@ -139,6 +140,22 @@ picthMatrix picth = Mat.fromList 4 4 [
     cosa picth, 0, sina picth, 0,
     0, 1, 0, 0,
     -1 * sina picth, 0, cosa picth, 0,
+    0, 0, 0, 1
+  ]
+-}
+picthMatrix :: Floating a => a -> Mat.Matrix a
+picthMatrix picth = Mat.fromList 4 4 [
+    1, 0, 0, 0,
+    0, cosa picth, -1 * sina picth, 0,
+    0, sina picth, cosa picth, 0,
+    0, 0, 0, 1
+  ]
+
+yawMatrix :: Floating a => a -> Mat.Matrix a
+yawMatrix yaw = Mat.fromList 4 4 [
+    cosa yaw, 0, sina yaw, 0,
+    0, 1, 0, 0,
+    -1 * sina yaw, 0, cosa yaw, 0,
     0, 0, 0, 1
   ]
 
