@@ -38,7 +38,6 @@ import Data.IORef (IORef, newIORef)
 import qualified Graphics.Rendering.OpenGL as GL
 import Data.Map.Strict
 import qualified Data.Map.Strict as Map
-import           Control.Monad.IO.Class (MonadIO,liftIO)
 import qualified Control.Monad.State.Lazy as State (get)
 import Control.Monad.State.Lazy hiding (get)
 import Control.Monad.Reader
@@ -52,7 +51,7 @@ type MouseKey = (Map GLUT.Key KeyState,MouseState)
 type GLUTState = DisplayData
 type GLUTRead = MouseKey
 
--- | Monad that describes behaviour of GLUT.
+-- | Monad that describes behavior of GLUT.
 type GLUT a = StateT GLUTState (ReaderT GLUTRead IO) a
 
 -- | Changes GLUT main callback.
