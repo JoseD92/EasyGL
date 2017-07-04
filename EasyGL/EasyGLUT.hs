@@ -1,48 +1,120 @@
 {-|
-Module      : EasyGL.Init
+Module      : EasyGL.EasyGLUT
 Description : Initialize OpenGL environment.
 
 Initialize OpenGL environment using GLUT, for aplications using a single window with a single viewport.
 -}
 
-module EasyGL.Init (MouseDelta,
+module EasyGL.EasyGLUT (
   MouseKey,
-  IOLoop(..),
-  IORet(..),
+  MouseState(..),
   GLUT.MouseButton(..),
   GLUT.SpecialKey(..),
   GLUT.Key(..),
   KeyState(..),
+  GLUT,
+  changeMainLoop,
+  getMouseInfo,
+  getKeysInfo,
+  fixMouseAt,
+  freeMouse,
+  currentAspect,
+  getWindowSize,
+  setWindowSize,
+  getWindowPosition,
+  setWindowPosition,
+  fullScreen,
   maybeDown,
   maybePressed,
   maybeUp,
   maybeReleased,
   initOpenGLEnvironment,
-  initGL,
-  currentAspect)
+  initGL)
 where
 
 import qualified Graphics.UI.GLUT  as GLUT
-import           Control.Monad
-import qualified Data.ByteString           as BS
 import           Data.StateVar             (get, ($=!), ($=), ($~!))
 import Data.IORef (IORef, newIORef)
-import           Foreign.Marshal.Array     (withArray)
-import           Foreign.Storable          (Storable)
 import qualified Graphics.Rendering.OpenGL as GL
-import           System.IO                 (Handle, hPutStr)
 import Data.Map.Strict
 import qualified Data.Map.Strict as Map
 import           Control.Monad.IO.Class (MonadIO,liftIO)
+import qualified Control.Monad.State.Lazy as State (get)
+import Control.Monad.State.Lazy hiding (get)
+import Control.Monad.Reader
 
-type MouseDelta = (GL.GLint,GL.GLint)
-type MouseKey = (Map GLUT.Key KeyState,MouseDelta)
-newtype IOLoop = IOLoop { runProgram :: MouseKey -> IO [IORet]}
-data IORet = ChangeIOMain IOLoop |
-  FixMouseAt GL.GLint GL.GLint |
-  FreeMouse
-  deriving (Show)
+-- | State of mouse.
+data MouseState = FreeMouse GL.GLint GL.GLint | FixMouse GL.GLint GL.GLint
 
+-- | Keeps info of mouse and keyboard keys state.
+type MouseKey = (Map GLUT.Key KeyState,MouseState)
+
+type GLUTState = DisplayData
+type GLUTRead = MouseKey
+
+-- | Monad that describes behaviour of GLUT.
+type GLUT a = StateT GLUTState (ReaderT GLUTRead IO) a
+
+-- | Changes GLUT main callback.
+changeMainLoop :: GLUT () -> GLUT ()
+changeMainLoop f = modify' (\s -> s{ioLoop=f})
+
+-- | Returns current frame mouse info.
+getMouseInfo :: GLUT MouseState
+getMouseInfo = fmap snd ask
+
+-- | Returns current frame keys info.
+getKeysInfo :: GLUT (Map GLUT.Key KeyState)
+getKeysInfo = fmap fst ask
+
+-- | Fix mouse at a given point of window.
+fixMouseAt :: GL.GLint -> GL.GLint -> GLUT ()
+fixMouseAt x y = do
+  modify' (\s -> s{mouseIsFixed=True})
+  bottons <- fmap bottons State.get
+  GLUT.pointerPosition $=! GL.Position x y
+  GLUT.passiveMotionCallback $= Just (fixedMouse x y bottons)
+  GLUT.motionCallback $= Just (fixedMouse x y bottons)
+
+-- | Allow free mouse movement.
+freeMouse :: GLUT ()
+freeMouse = do
+  modify' (\s -> s{mouseIsFixed=False})
+  bottons <- fmap bottons State.get
+  GLUT.passiveMotionCallback $= Just (defaultMouse bottons)
+  GLUT.motionCallback $= Just (defaultMouse bottons)
+
+-- | Returns current aspect ratio of active glut windows.
+currentAspect :: GLUT GL.GLdouble
+currentAspect = do
+  (GLUT.Size w h) <- GLUT.get GLUT.windowSize
+  return (fromIntegral w / fromIntegral h)
+
+-- | Returns size of active glut windows.
+getWindowSize :: GLUT (GL.GLsizei,GL.GLsizei)
+getWindowSize = do
+  (GLUT.Size w h) <- GLUT.get GLUT.windowSize
+  return (w,h)
+
+-- | Sets size of active glut windows.
+setWindowSize :: GL.GLsizei -> GL.GLsizei -> GLUT ()
+setWindowSize w h = GLUT.windowSize $=! GLUT.Size w h
+
+-- | Returns position of active glut windows.
+getWindowPosition :: GLUT (GL.GLint,GL.GLint)
+getWindowPosition = do
+  (GLUT.Position x y) <- GLUT.get GLUT.windowPosition
+  return (x,y)
+
+-- | Sets position of active glut windows.
+setWindowPosition :: GL.GLint -> GL.GLint -> GLUT ()
+setWindowPosition x y = GLUT.windowPosition $=! GLUT.Position x y
+
+-- | Makes glut window fullscreen.
+fullScreen :: GLUT ()
+fullScreen = GLUT.fullScreen
+
+-- | States in witch a key can be found.
 data KeyState = Down | Up | Pressed | Released deriving Show
 
 change :: KeyState -> KeyState
@@ -75,28 +147,6 @@ maybeUp x y = maybe x (filterUp y x)
 maybeReleased :: t -> t -> Maybe KeyState -> t
 maybeReleased x y = maybe x (filterReleased y x)
 
--- | Returns current aspect ratio of active opengl windows.
-currentAspect :: MonadIO m => m GL.GLdouble
-currentAspect = do
-  (GLUT.Size w h) <- GLUT.get GLUT.windowSize
-  return (fromIntegral w / fromIntegral h)
-
-instance Show IOLoop where
-  show (IOLoop _) = "IOLoop"
-
-ioRetFun :: IOLoop -> Bool -> IORef MouseKey -> IORet -> IO ()
-ioRetFun _ b bottons (ChangeIOMain io) = GLUT.displayCallback $= display b bottons io
-ioRetFun currentLoop _ bottons (FixMouseAt x y) = do
-  GLUT.pointerPosition $=! GL.Position x y
-  GLUT.passiveMotionCallback $= Just (fixedMouse x y bottons)
-  GLUT.motionCallback $= Just (fixedMouse x y bottons)
-  GLUT.displayCallback $= display True bottons currentLoop
-  bottons $~! \(myMap,_) -> (myMap,(0,0))
-ioRetFun currentLoop _ bottons FreeMouse = do
-  GLUT.passiveMotionCallback $= Just (defaultMouse bottons)
-  GLUT.motionCallback $= Just (defaultMouse bottons)
-  GLUT.displayCallback $= display False bottons currentLoop
-
 idle :: GLUT.IdleCallback
 idle = GLUT.postRedisplay Nothing
 
@@ -105,19 +155,24 @@ reshape size@(GL.Size w h) = do
   GL.viewport $= (GL.Position 0 0, size)
   GL.matrixMode $= GL.Projection
   GL.loadIdentity
-  GL.perspective 30 (fromIntegral w / fromIntegral h) 1 200
-  GL.matrixMode $= GL.Modelview 0
+  --GL.perspective 30 (fromIntegral w / fromIntegral h) 1 200
+  --GL.matrixMode $= GL.Modelview 0
   GLUT.postRedisplay Nothing
 
-display :: Bool -> IORef MouseKey -> IOLoop -> GLUT.DisplayCallback
-display b bottons io = do
+data DisplayData = DisplayData {
+    ioLoop :: GLUT (),
+    mouseIsFixed :: Bool,
+    bottons :: IORef MouseKey
+  }
+display :: DisplayData -> GLUT.DisplayCallback
+display mydata = do
   GL.clear [GL.ColorBuffer,GL.DepthBuffer]
   GL.loadIdentity
-  k <- get bottons
-  ret <- runProgram io k
-  bottons $~! \(myMap,x) -> (fmap change myMap,if b then (0,0) else x)
-  mapM_ (ioRetFun io b bottons) ret
+  keys <- get (bottons mydata)
+  s <- runReaderT (execStateT (ioLoop mydata) mydata) keys
+  bottons mydata $~! \(myMap,x) -> (fmap change myMap,if mouseIsFixed mydata then FixMouse 0 0 else x)
   GLUT.swapBuffers
+  GLUT.displayCallback $= display s
 
 keyboard ::  IORef MouseKey -> GLUT.KeyboardCallback
 keyboard ref c _ = do
@@ -145,11 +200,11 @@ mouseCall ref key GLUT.Up _ = ref $~! \(myMap,delta) -> (insert (GLUT.MouseButto
 mouseCall ref key GLUT.Down _ = ref $~! \(myMap,delta) -> (insert (GLUT.MouseButton key) Pressed myMap,delta)
 
 defaultMouse ::  IORef MouseKey -> GLUT.Position -> IO ()
-defaultMouse ref (GLUT.Position x y) = ref $~! \(myMap,_) -> (myMap,(x,y))
+defaultMouse ref (GLUT.Position x y) = ref $~! \(myMap,_) -> (myMap,FreeMouse x y)
 
 fixedMouse :: GL.GLint -> GL.GLint -> IORef MouseKey -> GLUT.Position -> IO ()
 fixedMouse fixx fixy bottons (GLUT.Position x y) = do
-  bottons $~! \(myMap,_) -> (myMap,(x-fixx,y-fixy))
+  bottons $~! \(myMap,_) -> (myMap,FixMouse (x-fixx) (y-fixy))
   GLUT.passiveMotionCallback $= Just help
   GLUT.motionCallback $= Just help
   GLUT.pointerPosition $=! GL.Position fixx fixy
@@ -158,6 +213,7 @@ fixedMouse fixx fixy bottons (GLUT.Position x y) = do
       GLUT.passiveMotionCallback $= Just (fixedMouse fixx fixy bottons)
       GLUT.motionCallback $= Just (fixedMouse fixx fixy bottons)
 
+-- | Initializes Opengl and GLUT environments, OpenGL calls can be made after this function.
 initOpenGLEnvironment :: GL.GLsizei -> GL.GLsizei -> String -> IO GLUT.Window
 initOpenGLEnvironment sizex sizey windowName = do
   GLUT.getArgsAndInitialize
@@ -165,8 +221,9 @@ initOpenGLEnvironment sizex sizey windowName = do
   GLUT.initialWindowSize $= GL.Size sizex sizey
   GLUT.createWindow windowName
 
-initGL :: IOLoop -> IO ()
-initGL io = do
+-- | Given a callback GLUT function, starts the main loop of program.
+initGL :: GLUT () -> IO ()
+initGL f = do
 
   GL.clearColor $= GL.Color4 0 0 0 0
   GL.materialDiffuse GL.Front $= GL.Color4 1 1 1 1
@@ -177,7 +234,7 @@ initGL io = do
   GL.autoNormal $= GL.Enabled
   GL.normalize $= GL.Enabled
 
-  bottons <- newIORef ((empty,(0,0)) :: MouseKey)
+  bottons <- newIORef ((empty,FreeMouse 0 0) :: MouseKey)
 
   GLUT.passiveMotionCallback $= Just (defaultMouse bottons)
   GLUT.motionCallback $= Just (defaultMouse bottons)
@@ -190,5 +247,5 @@ initGL io = do
 
   GLUT.reshapeCallback $= Just reshape
   GLUT.idleCallback $= Just idle
-  GLUT.displayCallback $= display False bottons io
+  GLUT.displayCallback $= display (DisplayData f False bottons)
   GLUT.mainLoop
