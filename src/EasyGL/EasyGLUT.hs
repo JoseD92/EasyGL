@@ -1,12 +1,18 @@
-{-|
-Module      : EasyGL.EasyGLUT
-Description : Initialize OpenGL environment.
-
-Initialize OpenGL environment using GLUT, for aplications using a single window with a single viewport.
--}
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.EasyGLUT
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Provides and easy to use interface to GLUT, performs all the heavy lifting required to render OpenGL to a single window.
+--
+--------------------------------------------------------------------------------
 
 module EasyGL.EasyGLUT (
-  MouseKey,
   MouseState(..),
   GLUT.MouseButton(..),
   GLUT.SpecialKey(..),
@@ -24,6 +30,8 @@ module EasyGL.EasyGLUT (
   getWindowPosition,
   setWindowPosition,
   fullScreen,
+  hideCursor,
+  showCursor,
   maybeDown,
   maybePressed,
   maybeUp,
@@ -32,15 +40,25 @@ module EasyGL.EasyGLUT (
   initGL)
 where
 
-import qualified Graphics.UI.GLUT  as GLUT
-import           Data.StateVar             (get, ($=!), ($=), ($~!))
-import Data.IORef (IORef, newIORef)
+import           Control.Monad.Reader
+import           Control.Monad.State.Lazy  hiding (get)
+import qualified Control.Monad.State.Lazy  as State (get)
+import           Data.IORef                (IORef, newIORef)
+import           Data.Map.Strict
+import qualified Data.Map.Strict           as Map
+import           Data.StateVar             (get, ($=), ($=!), ($~!))
 import qualified Graphics.Rendering.OpenGL as GL
-import Data.Map.Strict
-import qualified Data.Map.Strict as Map
-import qualified Control.Monad.State.Lazy as State (get)
-import Control.Monad.State.Lazy hiding (get)
-import Control.Monad.Reader
+import qualified Graphics.UI.GLUT          as GLUT
+
+--------------------------------------------------------------------------------
+-- $GLUT Monad
+-- The GLUT monad takes care of input (mouse and keyboard) as well as other common GLUT callbacks,
+-- state of the window can be access using the monad functions.
+--
+-- GLUT will run double buffered and the buffer change will be perform automatically at the end of each frame.
+-- The user of this monad is expected to not import the GLUT library, and communicate with GLUT by the exposed functions in this library.
+-- Inside GLUT monad the user should perform an IOlift and call a function that would only make OpenGL calls to draw the current frame.
+--
 
 -- | State of mouse.
 data MouseState = FreeMouse GL.GLint GL.GLint | FixMouse GL.GLint GL.GLint
@@ -113,29 +131,37 @@ setWindowPosition x y = GLUT.windowPosition $=! GLUT.Position x y
 fullScreen :: GLUT ()
 fullScreen = GLUT.fullScreen
 
+-- | Hides cursor.
+hideCursor :: GLUT ()
+hideCursor = GLUT.cursor $=! GLUT.None
+
+-- | Show cursor.
+showCursor :: GLUT ()
+showCursor = GLUT.cursor $=! GLUT.RightArrow
+
 -- | States in witch a key can be found.
 data KeyState = Down | Up | Pressed | Released deriving Show
 
 change :: KeyState -> KeyState
-change Down = Down
-change Up = Up
+change Down     = Down
+change Up       = Up
 change Released = Up
-change Pressed = Down
+change Pressed  = Down
 
 filterDown :: t -> t -> KeyState -> t
-filterDown x _ Down = x
+filterDown x _ Down    = x
 filterDown x _ Pressed = x
-filterDown _ x _ = x
+filterDown _ x _       = x
 filterPressed :: t -> t -> KeyState -> t
 filterPressed x _ Pressed = x
-filterPressed _ x _ = x
+filterPressed _ x _       = x
 filterUp :: t -> t -> KeyState -> t
-filterUp x _ Up = x
+filterUp x _ Up       = x
 filterUp x _ Released = x
-filterUp _ x _ = x
+filterUp _ x _        = x
 filterReleased :: t -> t -> KeyState -> t
 filterReleased x _ Released = x
-filterReleased _ x _ = x
+filterReleased _ x _        = x
 
 maybeDown :: t -> t -> Maybe KeyState -> t
 maybeDown x y = maybe x (filterDown y x)
@@ -159,9 +185,9 @@ reshape size@(GL.Size w h) = do
   GLUT.postRedisplay Nothing
 
 data DisplayData = DisplayData {
-    ioLoop :: GLUT (),
+    ioLoop       :: GLUT (),
     mouseIsFixed :: Bool,
-    bottons :: IORef MouseKey
+    bottons      :: IORef MouseKey
   }
 display :: DisplayData -> GLUT.DisplayCallback
 display mydata = do
@@ -180,8 +206,8 @@ keyboard ref c _ = do
   ref $=! maybe (insert (GLUT.Char c) Pressed myMap,delta)
     (\s -> case s of
             Pressed -> (insert (GLUT.Char c) Down myMap,delta)
-            Down -> (insert (GLUT.Char c) Down myMap,delta)
-            _ -> (insert (GLUT.Char c) Pressed myMap,delta)
+            Down    -> (insert (GLUT.Char c) Down myMap,delta)
+            _       -> (insert (GLUT.Char c) Pressed myMap,delta)
     )
     state
 
@@ -213,6 +239,8 @@ fixedMouse fixx fixy bottons (GLUT.Position x y) = do
       GLUT.motionCallback $= Just (fixedMouse fixx fixy bottons)
 
 -- | Initializes Opengl and GLUT environments, OpenGL calls can be made after this function.
+-- Must always be call before calling initGL.
+-- Useful if you need to load data to the GPU, such as compiling shaders, sending mesh data or textures.
 initOpenGLEnvironment :: GL.GLsizei -> GL.GLsizei -> String -> IO GLUT.Window
 initOpenGLEnvironment sizex sizey windowName = do
   GLUT.getArgsAndInitialize

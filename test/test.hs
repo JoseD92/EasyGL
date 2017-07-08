@@ -147,8 +147,10 @@ myfun clock (mat,link) mydataref = do
     Just Down -> do
       mydataref $~! \ref -> ref{vistaEneabled=True}
       fixMouseAt 400 300
+      hideCursor
     _ -> case freeCamera of
       Just Down -> do
         mydataref $~! \ref -> ref{vistaEneabled=False}
         freeMouse
+        showCursor
       _ -> return ()

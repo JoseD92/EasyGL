@@ -1,17 +1,39 @@
-module EasyGL.Entity(Entity,readObj2Ent,obj2Ent,renderEnt,indexedModel2Ent) where
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.Entity
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Assists in the process of loading a mesh to gpu and drawing it with OpenGL.
+--
+--------------------------------------------------------------------------------
 
-import qualified EasyGL.Obj.Obj as Obj
-import qualified EasyGL.Shader as S
-import qualified EasyGL.IndexedModel as IM
+module EasyGL.Entity(
+  Entity,
+  readObj2Ent,
+  obj2Ent,
+  renderEnt,
+  indexedModel2Ent,
+  deleteEntity
+  ) where
 
-import Foreign.Marshal.Array
-import Foreign.Ptr
-import Foreign.Storable
-import qualified Data.Vector.Storable as VS
+import qualified EasyGL.IndexedModel       as IM
+import qualified EasyGL.Obj.Obj            as Obj
+import qualified EasyGL.Shader             as S
 
-import Graphics.Rendering.OpenGL
-import System.IO
-import Control.Monad
+import qualified Data.Vector.Storable      as VS
+import           Foreign.Marshal.Array
+import           Foreign.Ptr
+import           Foreign.Storable
+
+import           Control.Monad
+import           Control.Monad.IO.Class    (MonadIO, liftIO)
+import           Graphics.Rendering.OpenGL
+import           System.IO
 
 bufferOffset :: Integral a => a -> Ptr b
 bufferOffset = plusPtr nullPtr . fromIntegral
@@ -45,16 +67,18 @@ makeArrayBufferObject = do
 
 data SubEntity = SubEntity {
   vertexArrObject :: VertexArrayObject,
-  vertexes :: BufferObject, --most allways occur
-  textureCoord :: Maybe BufferObject,
-  normals :: Maybe BufferObject,
-  indexBuffer :: BufferObject,--most allways occur
-  vertexNum :: !Int,
-  vertexIndexNum :: !Int
+  vertexes        :: BufferObject, --most allways occur
+  textureCoord    :: Maybe BufferObject,
+  normals         :: Maybe BufferObject,
+  indexBuffer     :: BufferObject,--most allways occur
+  vertexNum       :: !Int,
+  vertexIndexNum  :: !Int
 } deriving (Show)
 
+-- | Represents a mesh with possibly normals and texture coordinates, that is loaded in gpu and can be draw within an OpenGL environment.
 type Entity = [SubEntity]
 
+-- | Given an indexed model, generates an entity.
 indexedModel2Ent :: [IM.IndexedModel] -> IO Entity
 indexedModel2Ent = mapM fromIM
 
@@ -70,18 +94,15 @@ fromIM g = do
   bindVertexArrayObject $= Nothing
   return (SubEntity mesh vertexBuffer Nothing normalBuffer indexBuffer (VS.length (IM.vertices g)) (VS.length (IM.indexes g)))
 
+-- | Given the .obj text, generates an entity.
 readObj2Ent :: String -> IO Entity
 readObj2Ent s = (Obj.readObj <$> readFile s) >>= indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
 
+-- | Given an .obj mesh, generates an entity.
 obj2Ent :: Obj.Obj -> IO Entity
 obj2Ent = indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
 
---obj2Ent :: Obj.Obj -> IO Entity
---obj2Ent o = do
---  let k = map Obj.toIndexedModel . Obj.groups $ o
---  print k
---  indexedModel2Ent k
-
+-- | Given a shader and an io action (that should only set the shader uniform variables), draws with OpenGL the given Entity.
 renderEnt :: S.Shader -> Entity -> IO () -> IO ()
 renderEnt shader ent shaderAction = S.withShader shader $ do
   shaderAction
@@ -94,7 +115,17 @@ renderSubEnt e = do
   drawElementsBaseVertex Triangles (fromIntegral.vertexIndexNum $ e) UnsignedInt nullPtr 0
   bindVertexArrayObject $= Nothing
 
+-- | Deletes and entity and frees gpu memory.
+deleteEntity :: MonadIO m => Entity -> m ()
+deleteEntity = mapM_ deleteSubEntity
 
+deleteSubEntity :: MonadIO m => SubEntity -> m ()
+deleteSubEntity se = do
+  deleteObjectName $ vertexArrObject se
+  deleteObjectName $ vertexes se
+  deleteObjectName $ indexBuffer se
+  forM_ (textureCoord se) deleteObjectName
+  forM_ (normals se) deleteObjectName
 
 
 

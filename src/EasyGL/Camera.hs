@@ -1,9 +1,17 @@
-{-|
-Module      : EasyGL.Camera
-Description : Helps by providing an easy to use interface to OpenGL perspectives.
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.Camera
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Utility for easy interaction with OpenGL environment, provides a camera structure that is user friendly.
+--
+--------------------------------------------------------------------------------
 
-Provides an easy to use interface to OpenGL perspectives and change them easily.
--}
 module EasyGL.Camera (
   Camera2D,
   Camera3D,
@@ -26,7 +34,7 @@ import qualified Data.Matrix as Mat
 import Foreign.Marshal.Array
 
 {-|
-  Sets OpenGL environment to use given camera.
+  Makes OpenGL environment use given camera.
 -}
 class IsCamera c where
   useCamera :: MonadIO m => c -> m ()
