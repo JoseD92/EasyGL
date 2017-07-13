@@ -12,7 +12,7 @@ import Data.Foldable (toList)
 import qualified Data.Vector.Storable as VS
 
 toVector :: (VS.Storable a) => [a] -> VS.Vector a
-toVector = VS.concat . map VS.singleton
+toVector = VS.fromList
 
 toIndexedModel :: Group -> IM.IndexedModel
 toIndexedModel g = IM.IndexedModel (toVector vert2) (toVector norm2) (toVector $ map invertY tex1) (toVector index2)

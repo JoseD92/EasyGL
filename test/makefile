@@ -5,7 +5,7 @@ PROFILEFLAGS = -prof -fprof-auto
 
 all: test.exe
 
-test.exe: test.hs
+test.exe: FORCE
 	$(GHC) $(GHCFLAGS) test.hs
 
 profiler: FORCE

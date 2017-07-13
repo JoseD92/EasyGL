@@ -56,7 +56,7 @@ makeBufferObject target elems usage m = do
   VS.unsafeWith elems $ \ptr -> do
     let size = fromIntegral (VS.length elems * sizeOf (VS.head elems))
     bufferData target $= (size, ptr, usage)
-  --seting vertex attrib pointer to make aware of propiety
+  --setting vertex attrib pointer to be aware of buffer
   maybe (return ()) setVertexAttribPointer m
   return buffer
 
@@ -67,10 +67,10 @@ makeArrayBufferObject = do
 
 data SubEntity = SubEntity {
   vertexArrObject :: VertexArrayObject,
-  vertexes        :: BufferObject, --most allways occur
+  vertexes        :: BufferObject, --most always occur
   textureCoord    :: Maybe BufferObject,
   normals         :: Maybe BufferObject,
-  indexBuffer     :: BufferObject,--most allways occur
+  indexBuffer     :: BufferObject,--most always occur
   vertexNum       :: !Int,
   vertexIndexNum  :: !Int
 } deriving (Show)
