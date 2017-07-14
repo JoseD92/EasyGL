@@ -1,9 +1,17 @@
-{-|
-Module      : EasyGL.Shader
-Description : Helps by providing an easy to use interface to OpenGL shaders.
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.Shader
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Provides an easy to use interface to OpenGL shaders and programs, from creation to usage.
+--
+--------------------------------------------------------------------------------
 
-Provides an easy to use interface to OpenGL shaders and programs, from creation to usage.
--}
 module EasyGL.Shader (
   GL.ShaderType(..),
   Shader,
@@ -13,14 +21,25 @@ module EasyGL.Shader (
   withShader,
   putActiveUniforms,
   setVar,
-  setArr)
+  setArr,
+  setArrLen,
+  setArrPtr,
+  Uniform,
+  withShaderSafe,
+  set,
+  setF,
+  setP,
+  uniforms
+)
 where
 
 import           Control.Monad
-import           Control.Monad.IO.Class (MonadIO,liftIO)
+import           Control.Monad.IO.Class    (MonadIO, liftIO)
 import qualified Data.ByteString           as BS
+import           Data.Foldable             (Foldable, toList)
 import           Data.StateVar             (get, ($=!))
-import           Foreign.Marshal.Array     (withArray)
+import           Foreign.Marshal.Array     (withArray, withArrayLen)
+import           Foreign.Ptr               (Ptr)
 import           Foreign.Storable          (Storable)
 import qualified Graphics.Rendering.OpenGL as GL
 import           System.IO                 (Handle, hPutStr)
@@ -136,11 +155,88 @@ Sets an uniform variable of currently selected shader to a given array of values
 Warning: does not checks types of provide value against variable.
 -}
 setArr :: (MonadIO m,Storable  a, GL.Uniform a, Integral b) => [a] -> b -> String -> m ()
-setArr vals tam str = liftIO $ do
+setArr vals len str = liftIO $ do
   pro <- get GL.currentProgram
   maybe (return ())
         (\x->do
           loc <- GL.uniformLocation x str
-          withArray vals $ \ptr -> GL.uniformv loc (fromIntegral tam) ptr
+          withArray vals $ \ptr -> GL.uniformv loc (fromIntegral len) ptr
         )
         pro
+
+{-|
+Same as setArr but the number of elements is calculated.
+-}
+setArrLen :: (MonadIO m,Storable  a, GL.Uniform a) => [a] -> String -> m ()
+setArrLen vals str = liftIO $ do
+  pro <- get GL.currentProgram
+  maybe (return ())
+        (\x->do
+          loc <- GL.uniformLocation x str
+          withArrayLen vals $ \tam ptr -> GL.uniformv loc (fromIntegral tam) ptr
+        )
+        pro
+
+{-|
+Same as setArr but the user provides the pointer to data and then number of elements.
+-}
+setArrPtr :: (MonadIO m, Integral b, GL.Uniform a) => Ptr a -> b -> String -> m ()
+setArrPtr ptr len str = liftIO $ do
+  pro <- get GL.currentProgram
+  maybe (return ())
+        (\x->do
+          loc <- GL.uniformLocation x str
+          GL.uniformv loc (fromIntegral len) ptr
+        )
+        pro
+
+--------------------------------------------------------------------------------
+-- Next section describes uniform variables as a monad to increase safety.
+--------------------------------------------------------------------------------
+
+-- | Monad that describes uniform variables operations.
+newtype Uniform a = Uniform { runUniform :: IO a }
+
+instance Functor Uniform where
+    fmap f (Uniform v) = Uniform (fmap f v)
+
+instance Applicative Uniform where
+    pure = Uniform . pure
+    Uniform f <*> Uniform v = Uniform (f <*> v)
+
+instance Monad Uniform where
+    return = pure
+    (>>=) (Uniform a) f = Uniform $ fmap f a >>= runUniform
+    (>>) (Uniform a) (Uniform b) = Uniform (a >> b)
+
+{-|
+  Specifies an action to be made using a given shader.
+  Safety comes from designating a monad to perform only the uniform variables operations.
+-}
+withShaderSafe :: MonadIO m => Shader -- ^ Shader to use.
+  -> Uniform () -- ^ Uniform variables setting actions.
+  -> m a -- ^ OpenGL function to render an object.
+  -> m a
+withShaderSafe s u action = do
+  pastProgram <- liftIO $ GL.get GL.currentProgram
+  liftIO $ GL.currentProgram $=! Just (program s)
+  liftIO $ runUniform u
+  ret <- action
+  liftIO $ GL.currentProgram $=! pastProgram
+  return ret
+
+-- | Sets an uniform variable to a value.
+set :: GL.Uniform a => String -> a -> Uniform ()
+set str a = Uniform $ setVar a str
+
+-- | Sets an uniform array to the values in a foldable container.
+setF :: (Foldable t,Storable  a, GL.Uniform a) => String -> t a -> Uniform ()
+setF str container = Uniform $ setArrLen (toList container) str
+
+-- | Given a pointer to data and the number of elements, sets an uniform array to data in pointer.
+setP :: (Integral b, GL.Uniform a) => String -> Ptr a -> b -> Uniform ()
+setP str ptr len = Uniform $ setArrPtr ptr len str
+
+-- | Prints the uniform variables of a shader.
+uniforms :: Uniform ()
+uniforms = Uniform putActiveUniforms

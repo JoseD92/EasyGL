@@ -1,3 +1,17 @@
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.IndexedModel
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Middle representation of a mesh data (mesh,texture coordinates and normals) in a format usable to OpenGL. This middle form allows to alter the mesh by, for example, adding normal in meshes that lacks them.
+--
+--------------------------------------------------------------------------------
+
 module EasyGL.IndexedModel (
   IndexedModel(..),
   emptyIndexedModel,
@@ -7,27 +21,29 @@ module EasyGL.IndexedModel (
 )
 where
 
-import Graphics.Rendering.OpenGL hiding (get)
-import EasyGL.Util
-import qualified Data.Sequence as Seq
-import qualified Data.Map.Strict as Map
-import Data.Foldable (toList)
-import Data.Vector.Storable ((!))
-import qualified Data.Vector as V
-import qualified Data.Vector.Mutable as VM
-import qualified Data.Vector.Storable as VS
+import           Control.Monad.Reader
+import           Control.Monad.ST
+import           Control.Monad.State.Lazy
+import           Data.Foldable                (toList)
+import qualified Data.Map.Strict              as Map
+import qualified Data.Sequence                as Seq
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Mutable          as VM
+import           Data.Vector.Storable         ((!))
+import qualified Data.Vector.Storable         as VS
 import qualified Data.Vector.Storable.Mutable as VSM
-import Control.Monad.ST
-import Control.Monad.State.Lazy
-import Control.Monad.Reader
+import           EasyGL.Util
+import           Graphics.Rendering.OpenGL    hiding (get)
 
+-- | Data representing a mesh.
 data IndexedModel = IndexedModel {
-  vertices :: !(VS.Vector (Vertex3 GLfloat)),
-  normals :: !(VS.Vector (Vector3 GLfloat)),
+  vertices     :: !(VS.Vector (Vertex3 GLfloat)),
+  normals      :: !(VS.Vector (Vector3 GLfloat)),
   textureCoord :: !(VS.Vector (Vector2 GLfloat)),
-  indexes :: !(VS.Vector GLuint)
+  indexes      :: !(VS.Vector GLuint)
 } deriving (Show)
 
+-- | An empty mesh.
 emptyIndexedModel :: IndexedModel
 emptyIndexedModel = IndexedModel VS.empty VS.empty VS.empty VS.empty
 
@@ -42,6 +58,8 @@ renderLine a b = do
   vertex a
   vertex b
 
+-- | An utility function that draw with OpenGL the normals of a given mesh as lines originating in the corresponding vertex of each normal.
+-- The lines will be drawn with the color set in OpenGL environment.
 renderNormals :: IndexedModel -> IO ()
 renderNormals g = renderPrimitive Lines $ VS.zipWithM_ renderLine verts newVerts
   where
@@ -49,7 +67,7 @@ renderNormals g = renderPrimitive Lines $ VS.zipWithM_ renderLine verts newVerts
     newVerts = VS.zipWith toVertex verts (normals g)
 
 
---Normals generation
+-- | Genarate normal for a given mesh, see hardness (0%) in: https://help.thefoundry.co.uk/modo/content/help/pages/uving/vertex_normals.html
 generateNormalsSoft :: IndexedModel -> IndexedModel
 generateNormalsSoft g = g{normals=runST $ do
     acc <- VM.replicate len Nothing
@@ -58,7 +76,7 @@ generateNormalsSoft g = g{normals=runST $ do
   }
   where
     len = VS.length . vertices $ g
-    maybeNormalize Nothing = Vector3 0 0 0
+    maybeNormalize Nothing  = Vector3 0 0 0
     maybeNormalize (Just v) = normalizeVec3 v
 
 (<+>) :: (Num a) => a -> Maybe a -> Maybe a
@@ -86,6 +104,7 @@ generateNormalsSoftAux g = do
     verts = vertices g
     index = indexes g
 
+-- | Genarate normal for a given mesh, see hardness (100%) in: https://help.thefoundry.co.uk/modo/content/help/pages/uving/vertex_normals.html
 generateNormalsHard :: IndexedModel -> IndexedModel
 generateNormalsHard g = runST $ do
   inde <- VS.thaw $ indexes g
@@ -106,16 +125,16 @@ generateNormalsHard g = runST $ do
     let newNorms = newNorms0 VS.++ (VS.concat . map VS.singleton . toList $ extraNorms)
     return $ IndexedModel newVerts newNorms newText newInde
   where
-    toVer Nothing = Vector3 0 0 0
+    toVer Nothing  = Vector3 0 0 0
     toVer (Just v) = v
     verts = vertices g
     texts = textureCoord g
     len = VS.length verts
 
 data Hard1 = Hard1 {
-    current1 :: Int,
-    next1 :: Int,
-    extraMap1 :: Map.Map (Vertex3 GLfloat,Vector3 GLfloat) GLuint,
+    current1   :: Int,
+    next1      :: Int,
+    extraMap1  :: Map.Map (Vertex3 GLfloat,Vector3 GLfloat) GLuint,
     extraVert1 :: Seq.Seq (Vertex3 GLfloat),
     extraNorm1 :: Seq.Seq (Vector3 GLfloat)
   }

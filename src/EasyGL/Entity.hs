@@ -79,8 +79,8 @@ data SubEntity = SubEntity {
 type Entity = [SubEntity]
 
 -- | Given an indexed model, generates an entity.
-indexedModel2Ent :: [IM.IndexedModel] -> IO Entity
-indexedModel2Ent = mapM fromIM
+indexedModel2Ent :: MonadIO m => [IM.IndexedModel] -> m Entity
+indexedModel2Ent = mapM (liftIO . fromIM)
 
 fromIM :: IM.IndexedModel -> IO SubEntity
 fromIM g = do
@@ -95,18 +95,16 @@ fromIM g = do
   return (SubEntity mesh vertexBuffer Nothing normalBuffer indexBuffer (VS.length (IM.vertices g)) (VS.length (IM.indexes g)))
 
 -- | Given the .obj text, generates an entity.
-readObj2Ent :: String -> IO Entity
-readObj2Ent s = (Obj.readObj <$> readFile s) >>= indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
+readObj2Ent :: MonadIO m => String -> m Entity
+readObj2Ent s = liftIO $ (Obj.readObj <$> readFile s) >>= indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
 
 -- | Given an .obj mesh, generates an entity.
-obj2Ent :: Obj.Obj -> IO Entity
+obj2Ent :: MonadIO m => Obj.Obj -> m Entity
 obj2Ent = indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
 
 -- | Given a shader and an io action (that should only set the shader uniform variables), draws with OpenGL the given Entity.
-renderEnt :: S.Shader -> Entity -> IO () -> IO ()
-renderEnt shader ent shaderAction = S.withShader shader $ do
-  shaderAction
-  mapM_ renderSubEnt ent
+renderEnt :: MonadIO m => S.Shader -> Entity -> S.Uniform () -> m ()
+renderEnt shader ent uniformAction = S.withShaderSafe shader uniformAction $ liftIO $ mapM_ renderSubEnt ent
 
 renderSubEnt :: SubEntity -> IO ()
 renderSubEnt e = do

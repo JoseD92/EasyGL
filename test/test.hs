@@ -10,7 +10,6 @@ import System.IO (stderr)
 import EasyGL.Entity
 import EasyGL.Camera
 import EasyGL.Material
-import EasyGL.Shader (setVar)
 import EasyGL.Obj.Obj (readObj,toIndexedModel,toIndexedModel,groups)
 import qualified EasyGL.IndexedModel as IM
 import Data.List (nub)
@@ -47,21 +46,31 @@ data MyData = MyData {
 
 updateRot m = m{camera=setYawPitchRoll (yaw m) (picth m) (roll m) $ camera m}
 
+sphere :: IO Entity
+sphere = do
+  obj <- readObj <$> readFile "./testAssets/sphere.obj"
+  let im = IM.generateNormalsHard $ toIndexedModel $ head $ groups obj
+  indexedModel2Ent [im]
+
+link :: IO Entity
+link = do
+  obj <- readObj <$> readFile "./testAssets/Young Link/YoungLink.obj"
+  let im = toIndexedModel $ head $ groups obj
+  indexedModel2Ent [im]
+
 main = do
   initOpenGLEnvironment 800 600 "test"
   let (Right c) = createCamera3D 0.0 0.0 10.0 0 0 0 30 (800/600) 0.3 200
   mydata <- newIORef $ MyData c False 0 0 0 0
   myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
-  --a <- makeMaterial "mat1" myShader [("./Young Link/YoungLink_grp1.png","sampler01")]
-  a <- makeMaterial "mat1" myShader []
+  a <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
+  --a <- makeMaterial myShader []
   clock <- initClock >>= newIORef
   case a of
     Left s -> putStrLn s
     Right mat -> do
       putStrLn "Loading"
-      obj <- readObj <$> readFile "./testAssets/sphere.obj"--"./Young Link/YoungLink.obj"
-      let im = IM.generateNormalsHard $ toIndexedModel $ head $ groups obj --IM.generateNormalsSoft
-      ent <- indexedModel2Ent [im]
+      ent <- link
       putStrLn "Loaded"
 
       initGL $ myfun (getDelta clock) (mat,ent) mydata
@@ -109,12 +118,12 @@ myfun clock (mat,link) mydataref = do
     cubeFrame 1 -- draw the outline
 
     preservingMatrix $ do
-      scale 20 20 (20 :: GLfloat)
+      --scale 20 20 (20 :: GLfloat)
+      scale 0.1 0.1 (0.1 :: GLfloat)
       --color $ Color3 (0::GLfloat) 1 0
       --normals
-      drawWithMat mat link $ do
-        --print $ shaderUse mydata
-        setVar (shaderUse mydata) "use"
+      drawWithMat mat link $
+        S.set "use" (shaderUse mydata)
 
   deltaTime <- fmap (*5) $ liftIO clock
 

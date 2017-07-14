@@ -1,3 +1,17 @@
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.Obj.ObjData
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Data types for storing a parsed Obj file.
+--
+--------------------------------------------------------------------------------
+
 module EasyGL.Obj.ObjData (Obj(..),Group(..),emptyGroup,emptyObj)
 where
 

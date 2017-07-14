@@ -1,3 +1,17 @@
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.Util
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Math functions for Graphics.Rendering.OpenGL types.
+--
+--------------------------------------------------------------------------------
+
 module EasyGL.Util (
   normVec2,
   normalizeVec2,
@@ -53,7 +67,7 @@ dotVec4 (GL.Vector4 x1 y1 z1 w1) (GL.Vector4 x2 y2 z2 w2) = x1*x2 + y1*y2 + z1*z
 instance (Num a) => Num (GL.Vector2 a) where
   (+) (GL.Vector2 x1 y1) (GL.Vector2 x2 y2) = GL.Vector2 (x1+x2) (y1+y2)
   (-) (GL.Vector2 x1 y1) (GL.Vector2 x2 y2) = GL.Vector2 (x1-x2) (y1-y2)
-  (*) (GL.Vector2 x1 y1) (GL.Vector2 x2 y2) = GL.Vector2 (x1*x2) (y1*y2) --This makes no sense, dont use
+  (*) (GL.Vector2 x1 y1) (GL.Vector2 x2 y2) = GL.Vector2 (x1*x2) (y1*y2) --This makes no sense, do not use.
   negate (GL.Vector2 x y) = GL.Vector2 (negate x) (negate y)
   abs (GL.Vector2 x y) = GL.Vector2 (abs x) (abs y)
   signum (GL.Vector2 x y) = GL.Vector2 (signum x) (signum y)

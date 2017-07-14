@@ -1,3 +1,17 @@
+--------------------------------------------------------------------------------
+-- |
+-- Module      :  EasyGL.Obj.Obj2IM
+-- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
+-- License     :  BSD3
+--
+-- Maintainer  :  Jose Daniel Duran Toro <jose_daniel_d@hotmail.com>
+-- Stability   :  stable
+-- Portability :  portable
+--
+-- Functions required to transform a Obj to an EasyGL Indexed Model.
+--
+--------------------------------------------------------------------------------
+
 module EasyGL.Obj.Obj2IM (
 toIndexedModel
   )
@@ -14,6 +28,7 @@ import qualified Data.Vector.Storable as VS
 toVector :: (VS.Storable a) => [a] -> VS.Vector a
 toVector = VS.fromList
 
+-- | Transforms a Obj Group into an indexed model.
 toIndexedModel :: Group -> IM.IndexedModel
 toIndexedModel g = IM.IndexedModel (toVector vert2) (toVector norm2) (toVector $ map invertY tex1) (toVector index2)
   where

@@ -1,6 +1,9 @@
 all: FORCE
-	cabal install --enable-library-profiling
+	make safe
 	cabal haddock --hyperlink-source
+	
+safe: FORCE
+	(cabal install --enable-library-profiling || make safe)
 	
 remake: FORCE
 	rm -rf dist
@@ -11,8 +14,7 @@ reset: FORCE
 	rm -rf cabal.sandbox.config
 	rm -rf .cabal-sandbox
 	cabal sandbox init
-	cabal install --enable-library-profiling
-	cabal haddock --hyperlink-source
+	make all
 
 documentation: FORCE
 	
