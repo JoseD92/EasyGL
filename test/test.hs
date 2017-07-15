@@ -10,7 +10,7 @@ import System.IO (stderr)
 import EasyGL.Entity
 import EasyGL.Camera
 import EasyGL.Material
-import EasyGL.Obj.Obj (readObj,toIndexedModel,toIndexedModel,groups)
+import EasyGL.Obj (readObj,toIndexedModel,toIndexedModel,groups)
 import qualified EasyGL.IndexedModel as IM
 import Data.List (nub)
 import DeltaClock

@@ -8,4 +8,4 @@ import EasyGL.Material
 import EasyGL.Shader
 import EasyGL.Texture
 import EasyGL.Util
-import EasyGL.Obj.Obj
+import EasyGL.Obj

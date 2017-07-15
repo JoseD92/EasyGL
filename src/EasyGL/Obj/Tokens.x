@@ -1,6 +1,6 @@
 {
 module EasyGL.Obj.Tokens where
-import Graphics.UI.GLUT
+import Graphics.Rendering.OpenGL
 }
 
 %wrapper "posn"

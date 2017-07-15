@@ -22,7 +22,7 @@ module EasyGL.Entity(
   ) where
 
 import qualified EasyGL.IndexedModel       as IM
-import qualified EasyGL.Obj.Obj            as Obj
+import qualified EasyGL.Obj                as Obj
 import qualified EasyGL.Shader             as S
 
 import qualified Data.Vector.Storable      as VS

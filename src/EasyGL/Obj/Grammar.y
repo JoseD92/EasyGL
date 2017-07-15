@@ -4,8 +4,7 @@
 module EasyGL.Obj.Grammar where
 import qualified EasyGL.Obj.Tokens as L
 import EasyGL.Obj.ObjData
-import Graphics.UI.GLUT
-
+import Graphics.Rendering.OpenGL
 }
 
 --%monad { StateT ParseState IO } { (>>=) } { return }

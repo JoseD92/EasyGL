@@ -34,7 +34,7 @@ import qualified Data.ByteString           as BS
 import qualified EasyGL.Entity             as E
 import qualified EasyGL.IndexedModel       as IM
 import qualified EasyGL.Material           as M
-import qualified EasyGL.Obj.Obj            as Obj
+import qualified EasyGL.Obj                as Obj
 import qualified EasyGL.Shader             as S
 import qualified EasyGL.Texture            as T
 import           Foreign.Ptr
