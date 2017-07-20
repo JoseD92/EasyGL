@@ -27,11 +27,4 @@ import EasyGL.Obj.Obj2IM
 
 -- | Parse a String into an Obj.
 readObj :: String -> Obj
-readObj = fixObj.parseObj.alexScanTokens
-
-fixGroup :: Group -> Group
-fixGroup g = g{vertices=reverse.vertices $ g,normals=reverse.normals $ g,
-  textureCoord=reverse.textureCoord $ g}
-
-fixObj :: Obj -> Obj
-fixObj o = o{groups=map fixGroup (groups o)}
+readObj = parseObj.alexScanTokens

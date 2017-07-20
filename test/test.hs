@@ -58,19 +58,26 @@ link = do
   let im = toIndexedModel $ head $ groups obj
   indexedModel2Ent [im]
 
+eagle :: IO Entity
+eagle = do
+  obj <- readObj <$> readFile "./testAssets/Eagle/eagle.obj"
+  let im = toIndexedModel $ head $ groups obj
+  indexedModel2Ent [im]
+
 main = do
   initOpenGLEnvironment 800 600 "test"
   let (Right c) = createCamera3D 0.0 0.0 10.0 0 0 0 30 (800/600) 0.3 200
   mydata <- newIORef $ MyData c False 0 0 0 0
   myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
-  a <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
-  --a <- makeMaterial myShader []
+  --a <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
+  --a <- makeMaterial myShader [("./testAssets/Eagle/texture.jpg","sampler01")]
+  a <- makeMaterial myShader []
   clock <- initClock >>= newIORef
   case a of
     Left s -> putStrLn s
     Right mat -> do
       putStrLn "Loading"
-      ent <- link
+      ent <- sphere
       putStrLn "Loaded"
 
       initGL $ myfun (getDelta clock) (mat,ent) mydata

@@ -20,14 +20,35 @@ $graphic = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/\\\ 0-9a-zA-Z]
 
 @object = "o " .*
 
+@groupVertex = "g " .*  [\n] "v "
+
 @group = "g " .*
 
 @div = "/"
+
+@usemtl = "usemtl " .*
+
+@mtllib = "mtllib " .*
+
+@shadingoff = "s off"
+
+@shading = "s " @entero10
 
 tokens :-
 
 $white+ ; --espacios
 "#".* ; --comentarios de resto de linea
+@usemtl{ \(AlexPn _ l c) s -> Usemtl (unwords.tail.words $ s)
+}
+@mtllib{ \(AlexPn _ l c) s -> Mtllib (unwords.tail.words $ s)
+}
+@shadingoff{ \(AlexPn _ l c) s -> ShadingOff
+}
+@shading{ \(AlexPn _ l c) s -> Shading (read.(drop 2) $ s)
+}
+
+@groupVertex{ \(AlexPn _ l c) s -> GroupV (unwords.tail.words.head.lines $ s)
+}
 @group{ \(AlexPn _ l c) s -> Group (unwords.tail.words $ s)
 }
 @object{ \(AlexPn _ l c) s -> Object (unwords.tail.words $ s)
@@ -60,7 +81,7 @@ $white+ ; --espacios
 
 {
 
-data Token = Vertex | VertexTexture | VertexNormal | Face | Group String | Object String | TDiv |
-  TFloat GLfloat | TInt GLuint deriving (Show)
+data Token = Vertex | VertexTexture | VertexNormal | Face | Group String | GroupV String | Object String | TDiv |
+  TFloat GLfloat | TInt GLuint | Usemtl String | Mtllib String | Shading Int | ShadingOff deriving (Show)
 
 }

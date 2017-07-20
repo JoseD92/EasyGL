@@ -24,6 +24,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Map.Strict as Map
 import Data.Foldable (toList)
 import qualified Data.Vector.Storable as VS
+import qualified Data.Maybe as M
 
 toVector :: (VS.Storable a) => [a] -> VS.Vector a
 toVector = VS.fromList
@@ -32,12 +33,16 @@ toVector = VS.fromList
 toIndexedModel :: Group -> IM.IndexedModel
 toIndexedModel g = IM.IndexedModel (toVector vert2) (toVector norm2) (toVector $ map invertY tex1) (toVector index2)
   where
-    vert0 = vertices g
+    vert0 = toList $ vertices g
     norm0 = normals g
     tex0 = textureCoord g
     index0 = indexes g
-    (vert1,norm1,index1) = if null norm0 then (vert0,[],index0) else addNorms vert0 index0 norm0 (normalsIndex g)
-    (vert2,norm2,tex1,index2) = if null tex0 then (vert1,norm1,[],index1) else addTexCoords vert1 index1 norm1 tex0 (textureCoordIndex g)
+    (vert1,norm1,index1) = if M.isNothing norm0
+      then (vert0,[],index0)
+      else addNorms vert0 index0 (toList . M.fromJust $ norm0) (normalsIndex g)
+    (vert2,norm2,tex1,index2) = if M.isNothing tex0
+      then (vert1,norm1,[],index1)
+      else addTexCoords vert1 index1 norm1 (toList . M.fromJust $ tex0) (textureCoordIndex g)
     invertY (Vector2 x y) = Vector2 x (1-y) -- either my image loading library is lying to me, or i actually have to make this transformation, but it works!!!
 
 addNorms :: [Vertex3 GLfloat] -> [GLuint] -> [Vector3 GLfloat] -> [GLuint] -> ([Vertex3 GLfloat],[Vector3 GLfloat],[GLuint])
