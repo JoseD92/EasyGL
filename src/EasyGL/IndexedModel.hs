@@ -72,7 +72,7 @@ generateNormalsSoft :: IndexedModel -> IndexedModel
 generateNormalsSoft g = g{normals=runST $ do
     acc <- VM.replicate len Nothing
     runReaderT (evalStateT (generateNormalsSoftAux g) 0) acc
-    fmap (VS.concat . map (VS.singleton . maybeNormalize) . toList) $ V.freeze acc
+    fmap (V.convert . V.map maybeNormalize) $ V.freeze acc
   }
   where
     len = VS.length . vertices $ g
@@ -111,18 +111,18 @@ generateNormalsHard g = runST $ do
   acc <- VM.replicate len Nothing
   if VS.null texts then do
     (extraVerts,extraNorms) <- runReaderT (evalStateT generateNormalsHardAux1 (Hard1 0 len Map.empty Seq.empty Seq.empty)) (verts,inde,acc)
-    let newVerts = verts VS.++ (VS.concat . map VS.singleton . toList $ extraVerts)
+    let newVerts = verts VS.++ (VS.fromList . toList $ extraVerts)
     newInde <- VS.freeze inde
-    newNorms0 <- fmap (VS.concat . map (VS.singleton . toVer) . toList) $ V.freeze acc
-    let newNorms = newNorms0 VS.++ (VS.concat . map VS.singleton . toList $ extraNorms)
+    newNorms0 <- fmap (V.convert . V.map toVer) $ V.freeze acc
+    let newNorms = newNorms0 VS.++ (VS.fromList . toList $ extraNorms)
     return $ IndexedModel newVerts newNorms VS.empty newInde
   else do
     (extraVerts,extraNorms,extraText) <- runReaderT (evalStateT generateNormalsHardAux2 (Hard2 0 len Map.empty Seq.empty Seq.empty Seq.empty)) (verts,texts,inde,acc)
-    let newVerts = verts VS.++ (VS.concat . map VS.singleton . toList $ extraVerts)
+    let newVerts = verts VS.++ (VS.fromList . toList $ extraVerts)
     newInde <- VS.freeze inde
-    let newText = texts VS.++ (VS.concat . map VS.singleton . toList $ extraText)
-    newNorms0 <- fmap (VS.concat . map (VS.singleton . toVer) . toList) $ V.freeze acc
-    let newNorms = newNorms0 VS.++ (VS.concat . map VS.singleton . toList $ extraNorms)
+    let newText = texts VS.++ (VS.fromList . toList $ extraText)
+    newNorms0 <- fmap (V.convert . V.map toVer) $ V.freeze acc
+    let newNorms = newNorms0 VS.++ (VS.fromList . toList $ extraNorms)
     return $ IndexedModel newVerts newNorms newText newInde
   where
     toVer Nothing  = Vector3 0 0 0

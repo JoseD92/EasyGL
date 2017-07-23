@@ -70,14 +70,14 @@ main = do
   mydata <- newIORef $ MyData c False 0 0 0 0
   myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
   --a <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
-  a <- makeMaterial myShader [("./testAssets/Eagle/texture.jpg","sampler01")]
-  --a <- makeMaterial myShader []
+  --a <- makeMaterial myShader [("./testAssets/Eagle/texture.jpg","sampler01")]
+  a <- makeMaterial myShader []
   clock <- initClock >>= newIORef
   case a of
     Left s -> putStrLn s
     Right mat -> do
       putStrLn "Loading"
-      ent <- eagle
+      ent <- sphere
       putStrLn "Loaded"
 
       initGL $ myfun (getDelta clock) (mat,ent) mydata
@@ -125,7 +125,7 @@ myfun clock (mat,link) mydataref = do
     cubeFrame 1 -- draw the outline
 
     preservingMatrix $ do
-      --scale 20 20 (20 :: GLfloat)
+      scale 20 20 (20 :: GLfloat)
       --scale 0.1 0.1 (0.1 :: GLfloat)
       --color $ Color3 (0::GLfloat) 1 0
       --normals

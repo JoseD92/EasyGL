@@ -24,21 +24,20 @@ import           Data.Foldable                (toList)
 import qualified Data.Map.Strict              as Map
 import qualified Data.Maybe                   as M
 import qualified Data.Sequence                as Seq
-import qualified Data.Vector as V
-import qualified Data.Vector.Mutable as VM
+import qualified Data.Vector                  as V
+import qualified Data.Vector.Mutable          as VM
 import qualified Data.Vector.Storable         as VS
-import qualified Data.Vector.Storable.Mutable as VSM
 import qualified EasyGL.IndexedModel          as IM
 import           EasyGL.Obj.ObjData
 import           Graphics.Rendering.OpenGL    hiding (get)
 
 defaultNormal :: Maybe (Vector3 GLfloat) -> Vector3 GLfloat
 defaultNormal (Just x) = x
-defaultNormal Nothing = Vector3 0 0 0
+defaultNormal Nothing  = Vector3 0 0 0
 
 defaultTexture :: Maybe (Vector2 GLfloat) -> Vector2 GLfloat
 defaultTexture (Just x) = x
-defaultTexture Nothing = Vector2 0 0
+defaultTexture Nothing  = Vector2 0 0
 
 -- | A needed correction to all textureCoord, as image loading library loads everything upside down, and it is easier to correct here.
 easyGLVector2Correction :: Vector2 GLfloat -> Vector2 GLfloat
@@ -80,8 +79,8 @@ rearrangeCaller f vectorA indexA vectorB indexB = do
 
 data RearrangeState a b c = RearrangeState {
   current :: Int,
-  extraA :: Seq.Seq a,
-  extraB :: Seq.Seq b,
+  extraA  :: Seq.Seq a,
+  extraB  :: Seq.Seq b,
   locator :: Map.Map (a,b) c
 }
 
@@ -89,11 +88,11 @@ defaultRearrangeState :: RearrangeState a b c
 defaultRearrangeState = RearrangeState 0 Seq.empty Seq.empty Map.empty
 
 data RearrangeRead a b c s = RearrangeRead {
-  readVetorA :: V.Vector a,
-  readVetorB :: V.Vector b,
+  readVetorA  :: V.Vector a,
+  readVetorB  :: V.Vector b,
   resulVector :: VM.MVector s (Maybe b),
-  indexA :: VM.MVector s c,
-  indexB :: V.Vector c
+  indexA      :: VM.MVector s c,
+  indexB      :: V.Vector c
 }
 
 type RearrangeM a b c s = StateT (RearrangeState a b c) (ReaderT (RearrangeRead a b c s) (ST s)) ()
