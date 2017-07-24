@@ -16,15 +16,27 @@ module EasyGL.Obj (
   EasyGL.Obj.ObjData.Obj(..),
   EasyGL.Obj.ObjData.Group(..),
   readObj,
-  toIndexedModel
+  toIndexedModel,
+  readObj2Ent,
+  obj2Ent
   )
 where
 
-import EasyGL.Obj.Grammar
-import EasyGL.Obj.Tokens
-import EasyGL.Obj.ObjData
-import EasyGL.Obj.Obj2IM
+import           Control.Monad.IO.Class (MonadIO, liftIO)
+import           EasyGL.Entity
+import           EasyGL.Obj.Grammar
+import           EasyGL.Obj.Obj2IM
+import           EasyGL.Obj.ObjData
+import           EasyGL.Obj.Tokens
 
 -- | Parse a String into an Obj.
 readObj :: String -> Obj
 readObj = parseObj.alexScanTokens
+
+-- | Given the .obj text, generates an entity.
+readObj2Ent :: MonadIO m => String -> m Entity
+readObj2Ent s = liftIO $ (readObj <$> readFile s) >>= indexedModel2Ent . toIndexedModel
+
+-- | Given an .obj mesh, generates an entity.
+obj2Ent :: MonadIO m => Obj -> m Entity
+obj2Ent = indexedModel2Ent . toIndexedModel

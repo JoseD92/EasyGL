@@ -13,7 +13,8 @@
 --------------------------------------------------------------------------------
 
 module EasyGL.Obj.Obj2IM (
-toIndexedModel
+toIndexedModel,
+groupToIndexedModel
   )
 where
 
@@ -43,8 +44,11 @@ defaultTexture Nothing  = Vector2 0 0
 easyGLVector2Correction :: Vector2 GLfloat -> Vector2 GLfloat
 easyGLVector2Correction (Vector2 x y) = Vector2 x (1-y)
 
-toIndexedModel :: Group -> IM.IndexedModel
-toIndexedModel g
+toIndexedModel :: Obj -> [IM.IndexedModel]
+toIndexedModel = map groupToIndexedModel . groups
+
+groupToIndexedModel :: Group -> IM.IndexedModel
+groupToIndexedModel g
     | M.isNothing norm0 && M.isNothing tex0 = IM.IndexedModel (V.convert vert0) VS.empty VS.empty (VS.fromList index0)
     | M.isJust norm0 && M.isNothing tex0 = runST $ do
       (newVert,newNorms,newIndex) <- rearrangeCaller defaultNormal vert0 (V.fromList index0) (V.fromList . toList . M.fromJust $ norm0) (V.fromList normIndex0)

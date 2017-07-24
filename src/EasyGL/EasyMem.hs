@@ -44,13 +44,13 @@ import           System.Mem.Weak
 
 readObj2Ent :: MonadIO m => String -> m E.Entity
 readObj2Ent s = do
-  e <- E.readObj2Ent s
+  e <- Obj.readObj2Ent s
   liftIO $ mkWeakPtr e $ Just $ E.deleteEntity e
   return e
 
 obj2Ent :: MonadIO m => Obj.Obj -> m E.Entity
 obj2Ent o = do
-  e <- E.obj2Ent o
+  e <- Obj.obj2Ent o
   liftIO $ mkWeakPtr e $ Just $ E.deleteEntity e
   return e
 

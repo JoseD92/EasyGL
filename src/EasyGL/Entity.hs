@@ -14,15 +14,12 @@
 
 module EasyGL.Entity(
   Entity,
-  readObj2Ent,
-  obj2Ent,
   renderEnt,
   indexedModel2Ent,
   deleteEntity
   ) where
 
 import qualified EasyGL.IndexedModel       as IM
-import qualified EasyGL.Obj                as Obj
 import qualified EasyGL.Shader             as S
 
 import qualified Data.Vector.Storable      as VS
@@ -93,14 +90,6 @@ fromIM g = do
   indexBuffer <- makeBufferObject ElementArrayBuffer (IM.indexes g) StaticDraw Nothing
   bindVertexArrayObject $= Nothing
   return (SubEntity mesh vertexBuffer Nothing normalBuffer indexBuffer (VS.length (IM.vertices g)) (VS.length (IM.indexes g)))
-
--- | Given the .obj text, generates an entity.
-readObj2Ent :: MonadIO m => String -> m Entity
-readObj2Ent s = liftIO $ (Obj.readObj <$> readFile s) >>= indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
-
--- | Given an .obj mesh, generates an entity.
-obj2Ent :: MonadIO m => Obj.Obj -> m Entity
-obj2Ent = indexedModel2Ent . map Obj.toIndexedModel . Obj.groups
 
 -- | Given a shader and an io action (that should only set the shader uniform variables), draws with OpenGL the given Entity.
 renderEnt :: MonadIO m => S.Shader -> Entity -> S.Uniform () -> m ()

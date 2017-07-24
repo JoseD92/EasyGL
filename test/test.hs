@@ -10,7 +10,7 @@ import System.IO (stderr)
 import EasyGL.Entity
 import EasyGL.Camera
 import EasyGL.Material
-import EasyGL.Obj (readObj,toIndexedModel,toIndexedModel,groups)
+import EasyGL.Obj
 import qualified EasyGL.IndexedModel as IM
 import Data.List (nub)
 import DeltaClock
@@ -46,41 +46,45 @@ data MyData = MyData {
 
 updateRot m = m{camera=setYawPitchRoll (yaw m) (picth m) (roll m) $ camera m}
 
-sphere :: IO Entity
-sphere = do
-  obj <- readObj <$> readFile "./testAssets/sphere.obj"
-  let im = IM.generateNormalsHard $ toIndexedModel $ head $ groups obj
-  indexedModel2Ent [im]
+sphere :: S.Shader -> IO (Material,Entity,IO ())
+sphere myShader = do
+  m <- makeMaterial myShader []
+  case m of
+    Left s -> putStrLn s >> exitSuccess
+    Right mat -> do
+      obj <- readObj <$> readFile "./testAssets/sphere.obj"
+      e <- indexedModel2Ent $ map IM.generateNormalsHard $ toIndexedModel obj
+      return (mat,e,scale 20 20 (20 :: GLfloat))
 
-link :: IO Entity
-link = do
-  obj <- readObj <$> readFile "./testAssets/Young Link/YoungLink.obj"
-  let im = toIndexedModel $ head $ groups obj
-  indexedModel2Ent [im]
+link :: S.Shader -> IO (Material,Entity,IO ())
+link myShader = do
+  m <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
+  case m of
+    Left s -> putStrLn s >> exitSuccess
+    Right mat -> do
+      e <- readObj2Ent "./testAssets/Young Link/YoungLink.obj"
+      return (mat,e,scale 0.1 0.1 (0.1 :: GLfloat))
 
-eagle :: IO Entity
-eagle = do
-  obj <- readObj <$> readFile "./testAssets/Eagle/eagle.obj"
-  let im = toIndexedModel $ head $ groups obj
-  indexedModel2Ent [im]
+eagle :: S.Shader -> IO (Material,Entity,IO ())
+eagle myShader = do
+  m <- makeMaterial myShader [("./testAssets/Eagle/texture.jpg","sampler01")]
+  case m of
+    Left s -> putStrLn s >> exitSuccess
+    Right mat -> do
+      e <- readObj2Ent "./testAssets/Eagle/eagle.obj"
+      return (mat,e,scale 0.1 0.1 (0.1 :: GLfloat) >> translate (Vector3 (-35) (-66) (-442 :: GLfloat)) )
 
 main = do
   initOpenGLEnvironment 800 600 "test"
   let (Right c) = createCamera3D 0.0 0.0 10.0 0 0 0 30 (800/600) 0.3 200
   mydata <- newIORef $ MyData c False 0 0 0 0
-  myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
-  --a <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
-  --a <- makeMaterial myShader [("./testAssets/Eagle/texture.jpg","sampler01")]
-  a <- makeMaterial myShader []
   clock <- initClock >>= newIORef
-  case a of
-    Left s -> putStrLn s
-    Right mat -> do
-      putStrLn "Loading"
-      ent <- sphere
-      putStrLn "Loaded"
+  putStrLn "Loading"
+  myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
+  stuff <- eagle myShader
+  putStrLn "Loaded"
 
-      initGL $ myfun (getDelta clock) (mat,ent) mydata
+  initGL $ myfun (getDelta clock) stuff mydata
 
 sensitivity = 0.1
 
@@ -94,8 +98,8 @@ sumCiclic max a b
   | a + b < 0 = a + b + max
   | otherwise = a + b
 
-myfun :: IO Double -> (Material,Entity) -> IORef MyData -> GLUT ()
-myfun clock (mat,link) mydataref = do
+myfun :: IO Double -> (Material,Entity,IO ()) -> IORef MyData -> GLUT ()
+myfun clock (mat,link,scaling) mydataref = do
   myMap <- getKeysInfo
   mouse <- getMouseInfo
   mydata <- get mydataref
@@ -125,10 +129,7 @@ myfun clock (mat,link) mydataref = do
     cubeFrame 1 -- draw the outline
 
     preservingMatrix $ do
-      scale 20 20 (20 :: GLfloat)
-      --scale 0.1 0.1 (0.1 :: GLfloat)
-      --color $ Color3 (0::GLfloat) 1 0
-      --normals
+      scaling
       drawWithMat mat link $
         S.set "use" (shaderUse mydata)
 
