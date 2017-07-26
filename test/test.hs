@@ -56,6 +56,15 @@ sphere myShader = do
       e <- indexedModel2Ent $ map IM.generateNormalsHard $ toIndexedModel obj
       return (mat,e,scale 20 20 (20 :: GLfloat))
 
+armadillo :: S.Shader -> IO (Material,Entity,IO ())
+armadillo myShader = do
+  m <- makeMaterial myShader []
+  case m of
+    Left s -> putStrLn s >> exitSuccess
+    Right mat -> do
+      e <- readObj2Ent "./testAssets/armadillo.obj"
+      return (mat,e,return ())
+
 link :: S.Shader -> IO (Material,Entity,IO ())
 link myShader = do
   m <- makeMaterial myShader [("./testAssets/Young Link/YoungLink_grp1.png","sampler01")]
@@ -81,7 +90,7 @@ main = do
   clock <- initClock >>= newIORef
   putStrLn "Loading"
   myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
-  stuff <- eagle myShader
+  stuff <- armadillo myShader
   putStrLn "Loaded"
 
   initGL $ myfun (getDelta clock) stuff mydata

@@ -9,6 +9,7 @@ $graphic = [\.\;\,\$\|\*\+\?\#\~\-\{\}\(\)\[\]\^\/\\\ 0-9a-zA-Z]
 @entero10 = [0-9][0-9]*
 @float1 = [\-]? @entero10 "." @entero10 [eE] [\-\+] @entero10 | @entero10 [eE] [\-\+] @entero10
 @float2 = [\-]? @entero10 "." @entero10
+@signedInteger = [\-]? @entero10
 
 @vertex = "v "
 
@@ -75,13 +76,16 @@ $white+ ; --espacios
 @float2 { \(AlexPn _ l c) s -> TFloat (read s)
 }
 
-@entero10 { \(AlexPn _ l c) s -> TInt (read s)
-} -- numeros base 10
+@entero10 { \(AlexPn _ l c) s -> TUInt (read s)
+}
+
+@signedInteger { \(AlexPn _ l c) s -> TInt (read s)
+}
 
 
 {
 
 data Token = Vertex | VertexTexture | VertexNormal | Face | Group String | GroupV String | Object String | TDiv |
-  TFloat GLfloat | TInt GLuint | Usemtl String | Mtllib String | Shading Int | ShadingOff deriving (Show)
+  TFloat GLfloat | TUInt GLuint | TInt GLint | Usemtl String | Mtllib String | Shading Int | ShadingOff deriving (Show)
 
 }

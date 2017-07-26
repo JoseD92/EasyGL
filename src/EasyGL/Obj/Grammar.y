@@ -23,6 +23,7 @@ import Data.Foldable (toList)
     Face {L.Face}
     TFloat {L.TFloat $$}
     TInt {L.TInt $$}
+    TUInt {L.TUInt $$}
     '/' { L.TDiv }
     Usemtl {L.Usemtl $$}
     Mtllib {L.Mtllib $$}
@@ -37,6 +38,7 @@ All : Mtllib Groups { Obj Nothing (Just $1) (toList $2) }
 
 toFloat : TFloat { $1 }
   | TInt { fromIntegral $1 :: GLfloat}
+  | TUInt { fromIntegral $1 :: GLfloat}
 
 
 Groups : GroupBlock { singleton $1 }
@@ -104,10 +106,10 @@ VertexNormalBlock : VertexNormalLine { singleton $1 }
   | VertexNormalBlock VertexNormalLine { $1 |> $2 }
 
 
-FaceNode : TInt { FaceNode ($1-1) Nothing Nothing }
-  | TInt '/' TInt { FaceNode ($1-1) (Just ($3-1)) Nothing }
-  | TInt '/' TInt '/' TInt { FaceNode ($1-1) (Just ($3-1)) (Just ($5-1)) }
-  | TInt '/' '/' TInt  { FaceNode ($1-1) Nothing (Just ($4-1)) }
+FaceNode : TUInt { FaceNode ($1-1) Nothing Nothing }
+  | TUInt '/' TUInt { FaceNode ($1-1) (Just ($3-1)) Nothing }
+  | TUInt '/' TUInt '/' TUInt { FaceNode ($1-1) (Just ($3-1)) (Just ($5-1)) }
+  | TUInt '/' '/' TUInt  { FaceNode ($1-1) Nothing (Just ($4-1)) }
 
 FaceLine : Face FaceNodeList { $2 }
 
