@@ -24,7 +24,7 @@ module EasyGL.Obj.ObjData (
   faceTrianges,
   indexBlockTrianges,
   groupTrianges,
-  indexes,
+  vertIndexes,
   textureCoordIndex,
   normalsIndex,
   allIndexes,
@@ -32,13 +32,13 @@ module EasyGL.Obj.ObjData (
   faceTriangesS,
   indexBlockTriangesS,
   groupTriangesS,
-  indexesS,
+  vertIndexesS,
   textureCoordIndexS,
   normalsIndexS,
   allIndexesS,
 
   groupTriangesV,
-  indexesV,
+  vertIndexesV,
   textureCoordIndexV,
   normalsIndexV,
   allIndexesV
@@ -59,9 +59,9 @@ import           Graphics.Rendering.OpenGL (GLfloat, GLuint, Vector2, Vector3,
 -- | Some Obj's often have more than one mesh, a Group is one such mesh within an Obj.
 data Group = Group {
   groupName    :: !(Maybe BS.ByteString),
-  vertices     :: !(Seq (Vertex3 GLfloat)),
-  textureCoord :: !(Maybe (Seq (Vector2 GLfloat))),
-  normals      :: !(Maybe (Seq (Vector3 GLfloat))),
+  groupVertices     :: !(Seq (Vertex3 GLfloat)),
+  groupTextureCoord :: !(Maybe (Seq (Vector2 GLfloat))),
+  groupNormals      :: !(Maybe (Seq (Vector3 GLfloat))),
   index        :: !(Seq IndexBlock)
 } deriving (Show)
 
@@ -119,8 +119,8 @@ groupTrianges :: Group -> [FaceNode]
 groupTrianges = concatMap indexBlockTrianges . index
 
 -- | Returns a list of the vertex indexes as triangles.
-indexes :: Group -> [GLuint]
-indexes = map nodeIndex . groupTrianges
+vertIndexes :: Group -> [GLuint]
+vertIndexes = map nodeIndex . groupTrianges
 
 -- | Returns a list of the texture coordinates indexes as triangles.
 textureCoordIndex :: Group -> [GLuint]
@@ -156,8 +156,8 @@ indexBlockTriangesS = foldl (S.><) S.empty . fmap faceTriangesS . faces
 groupTriangesS :: Group -> S.Seq FaceNode
 groupTriangesS = foldl (S.><) S.empty . fmap indexBlockTriangesS . index
 
-indexesS :: Group -> S.Seq GLuint
-indexesS = fmap nodeIndex . groupTriangesS
+vertIndexesS :: Group -> S.Seq GLuint
+vertIndexesS = fmap nodeIndex . groupTriangesS
 
 textureCoordIndexS :: Group -> S.Seq GLuint
 textureCoordIndexS = fmap (fromJust . nodeTextureCoords) . groupTriangesS
@@ -208,8 +208,8 @@ groupTriangesV g = V.create $ do
   return arr
 
 -- | Returns a list of the vertex indexes as triangles.
-indexesV :: Group -> V.Vector GLuint
-indexesV = V.map nodeIndex . groupTriangesV
+vertIndexesV :: Group -> V.Vector GLuint
+vertIndexesV = V.map nodeIndex . groupTriangesV
 
 -- | Returns a list of the texture coordinates indexes as triangles.
 textureCoordIndexV :: Group -> V.Vector GLuint

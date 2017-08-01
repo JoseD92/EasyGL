@@ -65,9 +65,9 @@ groupToIndexedModel g
       return $ IM.IndexedModel (V.convert newVert) (V.convert newNorms) (V.convert . V.map easyGLVector2Correction $ newText) (V.convert newIndex)
     | otherwise = IM.emptyIndexedModel
   where
-    vert0 = V.fromList . toList $ vertices g
-    norm0 = normals g
-    tex0 = textureCoord g
+    vert0 = V.fromList . toList $ groupVertices g
+    norm0 = groupNormals g
+    tex0 = groupTextureCoord g
     (index0,textIndex0,normIndex0) = allIndexesV g
 
 rearrangeCaller :: (Ord a,Ord b,Integral c,Num c) => (Maybe b -> b) -> V.Vector a -> V.Vector c -> V.Vector b -> V.Vector c -> ST s (V.Vector a,V.Vector b,V.Vector c)

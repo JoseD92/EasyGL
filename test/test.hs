@@ -1,4 +1,4 @@
-import EasyGL.EasyGLUT
+import EasyGLUT
 import qualified EasyGL.Shader as S
 import qualified Data.Map as Map
 import Control.Monad

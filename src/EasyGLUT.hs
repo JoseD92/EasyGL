@@ -1,6 +1,6 @@
 --------------------------------------------------------------------------------
 -- |
--- Module      :  EasyGL.EasyGLUT
+-- Module      :  EasyGLUT
 -- Copyright   :  Copyright (c) 2017, Jose Daniel Duran Toro
 -- License     :  BSD3
 --
@@ -12,7 +12,7 @@
 --
 --------------------------------------------------------------------------------
 
-module EasyGL.EasyGLUT (
+module EasyGLUT (
   MouseState(..),
   GLUT.MouseButton(..),
   GLUT.SpecialKey(..),
