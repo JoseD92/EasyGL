@@ -21,16 +21,16 @@ where
 import           Control.Monad.Reader
 import           Control.Monad.ST
 import           Control.Monad.State.Lazy
-import           Data.Foldable                (toList)
-import qualified Data.Map.Strict              as Map
-import qualified Data.Maybe                   as M
-import qualified Data.Sequence                as Seq
-import qualified Data.Vector                  as V
-import qualified Data.Vector.Mutable          as VM
-import qualified Data.Vector.Storable         as VS
-import qualified EasyGL.IndexedModel          as IM
+import           Data.Foldable             (toList)
+import qualified Data.Map.Strict           as Map
+import qualified Data.Maybe                as M
+import qualified Data.Sequence             as Seq
+import qualified Data.Vector               as V
+import qualified Data.Vector.Mutable       as VM
+import qualified Data.Vector.Storable      as VS
+import qualified EasyGL.IndexedModel       as IM
 import           EasyGL.Obj.ObjData
-import           Graphics.Rendering.OpenGL    hiding (get)
+import           Graphics.Rendering.OpenGL hiding (get)
 
 defaultNormal :: Maybe (Vector3 GLfloat) -> Vector3 GLfloat
 defaultNormal (Just x) = x
@@ -44,22 +44,23 @@ defaultTexture Nothing  = Vector2 0 0
 easyGLVector2Correction :: Vector2 GLfloat -> Vector2 GLfloat
 easyGLVector2Correction (Vector2 x y) = Vector2 x (1-y)
 
+-- | Turns every group within an Obj into an IndexedModel.
 toIndexedModel :: Obj -> [IM.IndexedModel]
 toIndexedModel = map groupToIndexedModel . groups
 
 groupToIndexedModel :: Group -> IM.IndexedModel
 groupToIndexedModel g
-    | M.isNothing norm0 && M.isNothing tex0 = IM.IndexedModel (V.convert vert0) VS.empty VS.empty (VS.fromList index0)
+    | M.isNothing norm0 && M.isNothing tex0 = IM.IndexedModel (V.convert vert0) VS.empty VS.empty (V.convert index0)
     | M.isJust norm0 && M.isNothing tex0 = runST $ do
-      (newVert,newNorms,newIndex) <- rearrangeCaller defaultNormal vert0 (V.fromList index0) (V.fromList . toList . M.fromJust $ norm0) (V.fromList normIndex0)
+      (newVert,newNorms,newIndex) <- rearrangeCaller defaultNormal vert0 index0 (V.fromList . toList . M.fromJust $ norm0) normIndex0
       return $ IM.IndexedModel (V.convert newVert) (V.convert newNorms) VS.empty (V.convert newIndex)
     | M.isNothing norm0 && M.isJust tex0 = runST $ do
-      (newVert,newText,newIndex) <- rearrangeCaller defaultTexture vert0 (V.fromList index0) (V.fromList . toList . M.fromJust $ tex0) (V.fromList textIndex0)
+      (newVert,newText,newIndex) <- rearrangeCaller defaultTexture vert0 index0 (V.fromList . toList . M.fromJust $ tex0) textIndex0
       return $ IM.IndexedModel (V.convert newVert) VS.empty (V.convert . V.map easyGLVector2Correction $ newText) (V.convert newIndex)
     | M.isJust norm0 && M.isJust tex0 = runST $ do
-      (newVert,newNorms,newIndex) <- rearrangeCaller defaultNormal vert0 (V.fromList index0) (V.fromList . toList . M.fromJust $ norm0) (V.fromList normIndex0)
+      (newVert,newNorms,newIndex) <- rearrangeCaller defaultNormal vert0 index0 (V.fromList . toList . M.fromJust $ norm0) normIndex0
       let newThing = V.zip newVert newNorms
-      (newThing,newText,newIndex) <- rearrangeCaller defaultTexture newThing newIndex (V.fromList . toList . M.fromJust $ tex0) (V.fromList textIndex0)
+      (newThing,newText,newIndex) <- rearrangeCaller defaultTexture newThing newIndex (V.fromList . toList . M.fromJust $ tex0) textIndex0
       let (newVert,newNorms) = V.unzip newThing
       return $ IM.IndexedModel (V.convert newVert) (V.convert newNorms) (V.convert . V.map easyGLVector2Correction $ newText) (V.convert newIndex)
     | otherwise = IM.emptyIndexedModel
@@ -67,7 +68,7 @@ groupToIndexedModel g
     vert0 = V.fromList . toList $ vertices g
     norm0 = normals g
     tex0 = textureCoord g
-    (index0,textIndex0,normIndex0) = allIndexes g
+    (index0,textIndex0,normIndex0) = allIndexesV g
 
 rearrangeCaller :: (Ord a,Ord b,Integral c,Num c) => (Maybe b -> b) -> V.Vector a -> V.Vector c -> V.Vector b -> V.Vector c -> ST s (V.Vector a,V.Vector b,V.Vector c)
 rearrangeCaller f vectorA indexA vectorB indexB = do

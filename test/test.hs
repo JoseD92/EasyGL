@@ -14,7 +14,9 @@ import EasyGL.Obj
 import qualified EasyGL.IndexedModel as IM
 import Data.List (nub)
 import DeltaClock
+import System.Mem
 import           Control.Monad.IO.Class (MonadIO,liftIO)
+import qualified Data.ByteString.Lazy as BS
 
 vertex3f (x,y,z) = vertex $ Vertex3 x y z
 vecSum (Vertex3 x1 y1 z1) (Vertex3 x2 y2 z2) = Vertex3 (x1+x2) (y1+y2) (z1+z2)
@@ -52,7 +54,7 @@ sphere myShader = do
   case m of
     Left s -> putStrLn s >> exitSuccess
     Right mat -> do
-      obj <- readObj <$> readFile "./testAssets/sphere.obj"
+      obj <- readObj <$> BS.readFile "./testAssets/sphere.obj"
       e <- indexedModel2Ent $ map IM.generateNormalsHard $ toIndexedModel obj
       return (mat,e,scale 20 20 (20 :: GLfloat))
 
@@ -92,7 +94,9 @@ main = do
   myShader <- S.loadShadersFromFile ["./testAssets/3Dshaders/vertex.shader","./testAssets/3Dshaders/frag.shader"] [VertexShader,FragmentShader] $ Just stderr
   stuff <- armadillo myShader
   putStrLn "Loaded"
+  getDelta clock >>= print
 
+  performGC
   initGL $ myfun (getDelta clock) stuff mydata
 
 sensitivity = 0.1
@@ -126,7 +130,7 @@ myfun clock (mat,link,scaling) mydataref = do
       (mvx,mvy,mvz) = foldr tripletSum (0,0,0) [pressUp,pressDown,pressLeft,pressRight,pressSpace,pressLControl]
 
   liftIO $ do
-    putStrLn $ (show . yaw) mydata ++ " " ++ (show . picth) mydata
+    --putStrLn $ (show . yaw) mydata ++ " " ++ (show . picth) mydata
 
     useCamera $ camera mydata
     maybeDown (return ()) (do
