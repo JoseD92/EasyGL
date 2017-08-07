@@ -30,6 +30,15 @@ cubeFrame w = renderPrimitive Lines $ mapM_ vertex3f
     ( w,-w,-w), ( w, w,-w),  ( w, w,-w), (-w, w,-w),
     (-w, w,-w), (-w,-w,-w),  (-w,-w,-w), ( w,-w,-w) ]
 
+toAngle :: Floating a => a -> a
+toAngle a = pi*a/180
+
+sina :: Floating a => a -> a
+sina = sin . toAngle
+
+cosa :: Floating a => a -> a
+cosa = cos . toAngle
+
 cambio angulo movimiento max sensibilidad
   | d >= max = 0
   | d <= 0 = max - d
@@ -120,10 +129,10 @@ myfun clock (mat,link,scaling) mydataref = do
   let exit = Map.lookup (Char '\ESC') myMap
       lockCamera = Map.lookup (Char 'z') myMap
       freeCamera = Map.lookup (Char 'x') myMap
-      pressUp = maybeDown (0,0,0) (0,0,1) $ Map.lookup (Char 'w') myMap
-      pressDown = maybeDown (0,0,0) (0,0,-1) $ Map.lookup (Char 's') myMap
-      pressLeft = maybeDown (0,0,0) (-1,0,0) $ Map.lookup (Char 'a') myMap
-      pressRight = maybeDown (0,0,0) (1,0,0) $ Map.lookup (Char 'd') myMap
+      pressUp = maybeDown (0,0,0) (((*(-1)) . sina . yaw) mydata,0,((*(-1)) . cosa . yaw) mydata) $ Map.lookup (Char 'w') myMap
+      pressDown = maybeDown (0,0,0) ((sina . yaw) mydata,0,(cosa . yaw) mydata) $ Map.lookup (Char 's') myMap
+      pressLeft = maybeDown (0,0,0) (((*(-1)) . sina . (+ 90) . yaw) mydata,0,((*(-1)) . cosa . (+ 90) . yaw) mydata) $ Map.lookup (Char 'a') myMap
+      pressRight = maybeDown (0,0,0) (((*(-1)) . sina . (subtract 90) . yaw) mydata,0,((*(-1)) . cosa . (subtract 90) . yaw) mydata) $ Map.lookup (Char 'd') myMap
       pressSpace = maybeDown (0,0,0) (0,1,0) $ Map.lookup (Char ' ') myMap
       pressLControl = maybeDown (0,0,0) (0,-1,0) $ Map.lookup (Char 'q') myMap
       tripletSum (x1,y1,z1) (x2,y2,z2) = (x1+x2,y1+y2,z1+z2)

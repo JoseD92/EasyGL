@@ -134,46 +134,80 @@ sina = sin . toAngle
 cosa :: Floating a => a -> a
 cosa = cos . toAngle
 
-{-
-yawMatrix :: Floating a => a -> Mat.Matrix a
-yawMatrix yaw = Mat.fromList 4 4 [
-    1, 0, 0, 0,
-    0, cosa yaw, -1 * sina yaw, 0,
-    0, sina yaw, cosa yaw, 0,
-    0, 0, 0, 1
-  ]
-
 picthMatrix :: Floating a => a -> Mat.Matrix a
-picthMatrix picth = Mat.fromList 4 4 [
-    cosa picth, 0, sina picth, 0,
-    0, 1, 0, 0,
-    -1 * sina picth, 0, cosa picth, 0,
-    0, 0, 0, 1
-  ]
--}
-picthMatrix :: Floating a => a -> Mat.Matrix a
-picthMatrix picth = Mat.fromList 4 4 [
+picthMatrix angle = Mat.fromList 4 4 [
     1, 0, 0, 0,
-    0, cosa picth, -1 * sina picth, 0,
-    0, sina picth, cosa picth, 0,
+    0, cosa angle, -1 * sina angle, 0,
+    0, sina angle, cosa angle, 0,
     0, 0, 0, 1
   ]
 
 yawMatrix :: Floating a => a -> Mat.Matrix a
-yawMatrix yaw = Mat.fromList 4 4 [
-    cosa yaw, 0, sina yaw, 0,
+yawMatrix angle = Mat.fromList 4 4 [
+    cosa angle, 0, sina angle, 0,
     0, 1, 0, 0,
-    -1 * sina yaw, 0, cosa yaw, 0,
+    -1 * sina angle, 0, cosa angle, 0,
     0, 0, 0, 1
   ]
 
 rollMatrix :: Floating a => a -> Mat.Matrix a
-rollMatrix roll = Mat.fromList 4 4 [
-    cosa roll, -1 * sina roll, 0, 0,
-    sina roll, cosa roll, 0, 0,
+rollMatrix angle = Mat.fromList 4 4 [
+    cosa angle, -1 * sina angle, 0, 0,
+    sina angle, cosa angle, 0, 0,
     0, 0, 1, 0,
     0, 0, 0, 1
   ]
 
+rollYawPicthMatrix :: Floating a => a -> a -> a -> Mat.Matrix a
+rollYawPicthMatrix yaw picth roll = Mat.fromList 4 4 [
+    cosRoll * cosYaw,
+    (cosRoll * sinYaw * sinPicth) - (sinRoll * cosPicth),
+    (cosRoll * sinYaw * cosPicth) + (sinRoll * sinPicth),
+    0,
+    sinRoll * cosYaw,
+    (sinRoll * sinYaw * sinPicth) + (cosRoll * cosPicth),
+    (sinRoll * sinYaw * cosPicth) - (cosRoll * sinPicth),
+    0,
+    negate sinYaw,
+    cosYaw * sinPicth,
+    cosYaw * cosPicth,
+    0,
+    0,
+    0,
+    0,
+    1
+  ]
+  where
+    sinYaw = sina yaw
+    cosYaw = cosa yaw
+    sinPicth = sina picth
+    cosPicth = cosa picth
+    sinRoll = sina roll
+    cosRoll = cosa roll
+
 yawPicthRollMatrix :: Floating a => a -> a -> a -> Mat.Matrix a
-yawPicthRollMatrix yaw picth roll = Mat.multStd (rollMatrix roll) $ Mat.multStd (picthMatrix picth) (yawMatrix yaw)
+yawPicthRollMatrix yaw picth roll = Mat.fromList 4 4 [
+    (cosYaw * cosRoll) + (sinYaw * sinPicth * sinRoll),
+    (sinYaw * sinPicth * cosRoll) - (cosYaw * sinRoll),
+    sinYaw * cosPicth,
+    0,
+    cosPicth * sinRoll,
+    cosPicth * cosRoll,
+    negate sinPicth,
+    0,
+    (cosYaw * sinPicth * sinRoll) - (sinYaw * cosRoll),
+    (sinYaw * sinRoll) + (cosYaw * sinPicth * cosRoll),
+    cosYaw * cosPicth,
+    0,
+    0,
+    0,
+    0,
+    1
+  ]
+  where
+    sinYaw = sina yaw
+    cosYaw = cosa yaw
+    sinPicth = sina picth
+    cosPicth = cosa picth
+    sinRoll = sina roll
+    cosRoll = cosa roll
