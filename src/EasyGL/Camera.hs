@@ -15,6 +15,7 @@
 module EasyGL.Camera (
   Camera2D,
   Camera3D,
+  IsCamera,
   useCamera,
   createCamera2D,
   createCamera3D,
