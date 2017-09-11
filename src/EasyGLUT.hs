@@ -41,14 +41,15 @@ module EasyGLUT (
 where
 
 import           Control.Monad.Reader
-import           Control.Monad.State.Lazy  hiding (get)
-import qualified Control.Monad.State.Lazy  as State (get)
+import           Control.Monad.State.Strict  hiding (get)
+import qualified Control.Monad.State.Strict  as State (get)
 import           Data.IORef                (IORef, newIORef)
 import           Data.Map.Strict
 import qualified Data.Map.Strict           as Map
 import           Data.StateVar             (get, ($=), ($=!), ($~!))
 import qualified Graphics.Rendering.OpenGL as GL
 import qualified Graphics.UI.GLUT          as GLUT
+import Control.Seq
 
 --------------------------------------------------------------------------------
 -- $GLUT Monad
@@ -90,16 +91,16 @@ fixMouseAt x y = do
   modify' (\s -> s{mouseIsFixed=True})
   bottons <- fmap bottons State.get
   GLUT.pointerPosition $=! GL.Position x y
-  GLUT.passiveMotionCallback $= Just (fixedMouse x y bottons)
-  GLUT.motionCallback $= Just (fixedMouse x y bottons)
+  GLUT.passiveMotionCallback $=! Just (fixedMouse x y bottons)
+  GLUT.motionCallback $=! Just (fixedMouse x y bottons)
 
 -- | Allow free mouse movement.
 freeMouse :: GLUT ()
 freeMouse = do
   modify' (\s -> s{mouseIsFixed=False})
   bottons <- fmap bottons State.get
-  GLUT.passiveMotionCallback $= Just (defaultMouse bottons)
-  GLUT.motionCallback $= Just (defaultMouse bottons)
+  GLUT.passiveMotionCallback $=! Just (defaultMouse bottons)
+  GLUT.motionCallback $=! Just (defaultMouse bottons)
 
 -- | Returns current aspect ratio of active glut windows.
 currentAspect :: GLUT GL.GLdouble
@@ -185,19 +186,20 @@ reshape size@(GL.Size w h) = do
   GLUT.postRedisplay Nothing
 
 data DisplayData = DisplayData {
-    ioLoop       :: GLUT (),
-    mouseIsFixed :: Bool,
+    ioLoop       :: !(GLUT ()),
+    mouseIsFixed :: !Bool,
     bottons      :: IORef MouseKey
   }
-display :: DisplayData -> GLUT.DisplayCallback
-display mydata = do
+display :: IORef DisplayData -> GLUT.DisplayCallback
+display ref = do
+  mydata <- get ref
   GL.clear [GL.ColorBuffer,GL.DepthBuffer]
   GL.loadIdentity
   keys <- get (bottons mydata)
   s <- runReaderT (execStateT (ioLoop mydata) mydata) keys
-  bottons mydata $~! \(myMap,x) -> (fmap change myMap,if mouseIsFixed mydata then FixMouse 0 0 else x)
+  bottons mydata $~! \(myMap,x) -> (Map.map change myMap,if mouseIsFixed mydata then FixMouse 0 0 else x)
   GLUT.swapBuffers
-  GLUT.displayCallback $= display s
+  ref $=! s
 
 keyboard ::  IORef MouseKey -> GLUT.KeyboardCallback
 keyboard ref c _ = do
@@ -206,7 +208,7 @@ keyboard ref c _ = do
   ref $=! maybe (insert (GLUT.Char c) Pressed myMap,delta)
     (\s -> case s of
             Pressed -> (insert (GLUT.Char c) Down myMap,delta)
-            Down    -> (insert (GLUT.Char c) Down myMap,delta)
+            Down    -> (myMap,delta)
             _       -> (insert (GLUT.Char c) Pressed myMap,delta)
     )
     state
@@ -225,18 +227,18 @@ mouseCall ref key GLUT.Up _ = ref $~! \(myMap,delta) -> (insert (GLUT.MouseButto
 mouseCall ref key GLUT.Down _ = ref $~! \(myMap,delta) -> (insert (GLUT.MouseButton key) Pressed myMap,delta)
 
 defaultMouse ::  IORef MouseKey -> GLUT.Position -> IO ()
-defaultMouse ref (GLUT.Position x y) = ref $~! \(myMap,_) -> (myMap,FreeMouse x y)
+defaultMouse ref (GLUT.Position x y) = ref $~! \(myMap,_) -> x `seq` y `seq` myMap `seq` (myMap,FreeMouse x y)
 
 fixedMouse :: GL.GLint -> GL.GLint -> IORef MouseKey -> GLUT.Position -> IO ()
 fixedMouse fixx fixy bottons (GLUT.Position x y) = do
   bottons $~! \(myMap,_) -> (myMap,FixMouse (x-fixx) (y-fixy))
-  GLUT.passiveMotionCallback $= Just help
-  GLUT.motionCallback $= Just help
+  GLUT.passiveMotionCallback $=! Just help
+  GLUT.motionCallback $=! Just help
   GLUT.pointerPosition $=! GL.Position fixx fixy
   where
     help _ = do
-      GLUT.passiveMotionCallback $= Just (fixedMouse fixx fixy bottons)
-      GLUT.motionCallback $= Just (fixedMouse fixx fixy bottons)
+      GLUT.passiveMotionCallback $=! Just (fixedMouse fixx fixy bottons)
+      GLUT.motionCallback $=! Just (fixedMouse fixx fixy bottons)
 
 -- | Initializes Opengl and GLUT environments, OpenGL calls can be made after this function.
 -- Must always be call before calling initGL.
@@ -252,27 +254,28 @@ initOpenGLEnvironment sizex sizey windowName = do
 initGL :: GLUT () -> IO ()
 initGL f = do
 
-  GL.clearColor $= GL.Color4 0 0 0 0
-  GL.materialDiffuse GL.Front $= GL.Color4 1 1 1 1
-  GL.materialSpecular GL.Front $= GL.Color4 1 1 1 1
-  GL.materialShininess GL.Front $= 100
+  GL.clearColor $=! GL.Color4 0 0 0 0
+  GL.materialDiffuse GL.Front $=! GL.Color4 1 1 1 1
+  GL.materialSpecular GL.Front $=! GL.Color4 1 1 1 1
+  GL.materialShininess GL.Front $=! 100
 
-  GL.depthFunc $= Just GL.Less
-  GL.autoNormal $= GL.Enabled
-  GL.normalize $= GL.Enabled
+  GL.depthFunc $=! Just GL.Less
+  GL.autoNormal $=! GL.Enabled
+  GL.normalize $=! GL.Enabled
 
   bottons <- newIORef ((empty,FreeMouse 0 0) :: MouseKey)
 
-  GLUT.passiveMotionCallback $= Just (defaultMouse bottons)
-  GLUT.motionCallback $= Just (defaultMouse bottons)
+  GLUT.passiveMotionCallback $=! Just (defaultMouse bottons)
+  GLUT.motionCallback $=! Just (defaultMouse bottons)
 
-  GLUT.keyboardCallback  $= Just (keyboard bottons)
-  GLUT.keyboardUpCallback $= Just (keyboardUp bottons)
-  GLUT.specialCallback $= Just (special bottons)
-  GLUT.specialUpCallback $= Just (specialUp bottons)
-  GLUT.mouseCallback $= Just (mouseCall bottons)
+  GLUT.keyboardCallback  $=! Just (keyboard bottons)
+  GLUT.keyboardUpCallback $=! Just (keyboardUp bottons)
+  GLUT.specialCallback $=! Just (special bottons)
+  GLUT.specialUpCallback $=! Just (specialUp bottons)
+  GLUT.mouseCallback $=! Just (mouseCall bottons)
 
-  GLUT.reshapeCallback $= Just reshape
-  GLUT.idleCallback $= Just idle
-  GLUT.displayCallback $= display (DisplayData f False bottons)
+  GLUT.reshapeCallback $=! Just reshape
+  GLUT.idleCallback $=! Just idle
+  ref <- newIORef $ DisplayData f False bottons
+  GLUT.displayCallback $=! display ref
   GLUT.mainLoop
