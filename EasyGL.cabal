@@ -19,7 +19,21 @@ library
   exposed-modules:     EasyGL, EasyGL.EasyMem, EasyGL.Util, EasyGL.Texture, EasyGL.Shader, EasyGL.Material, EasyGL.IndexedModel, EasyGL.Entity, EasyGLUT, EasyGL.Camera, EasyGL.Obj
   other-modules:       EasyGL.Obj.Grammar, EasyGL.Obj.Tokens, EasyGL.Obj.ObjData, EasyGL.Obj.Obj2IM
   other-extensions:    CPP
-  build-depends:       base >=4.9 && <4.10, OpenGL >=3.0 && <3.1, bytestring-conversion >=0.3.0 && <0.4.0, OpenGLRaw >=3.2 && <3.3, bytestring >=0.10 && <0.11, StateVar >=1.1 && <1.2, vector >=0.11 && <0.12, containers >=0.5 && <0.6, JuicyPixels >=3.2 && <3.3, mtl >=2.2 && <2.3, GLUT >=2.7 && <2.8, GLURaw >=2.0 && <2.1, matrix >=0.3 && <0.4, array >=0.5 && <0.6
+  build-depends:       base
+                      , OpenGL
+                      , bytestring-conversion
+                      , OpenGLRaw
+                      , bytestring
+                      , StateVar
+                      , vector
+                      , containers
+                      , JuicyPixels
+                      , mtl
+                      , GLUT
+                      , GLURaw
+                      , matrix
+                      , array
+                      , parallel
   hs-source-dirs:      src
   build-tools:         alex, happy
   default-language:    Haskell2010

@@ -5,7 +5,7 @@ module EasyGL.Obj.Grammar where
 import qualified EasyGL.Obj.Tokens as L
 import EasyGL.Obj.ObjData
 import Graphics.Rendering.OpenGL
-import Data.Sequence
+import Data.Sequence hiding (zip)
 import Data.Foldable (toList)
 }
 
